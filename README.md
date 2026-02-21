@@ -54,11 +54,32 @@ bun run dev
 
 The application will be available at `http://localhost:3007`
 
+## Logging System
+
+The application includes a comprehensive logging system that tracks all operations:
+
+- **Log Files Location:** `logs/` directory
+- **File Format:** `<category>-YYYY-MM-DD.log`
+- **Categories:** `server`, `api`, `config`, `git`, `project`
+- **API Endpoint:** `GET /api/logs` - List all log files
+- **Specific Log:** `GET /api/logs?category=server&date=2026-02-21`
+
+**Enable Debug Mode:**
+```bash
+# Linux/Mac
+DEBUG=true bun run dev:server
+
+# Windows PowerShell
+$env:DEBUG="true"; bun run dev:server
+```
+
+For detailed logging documentation, see [docs/LOGGING.md](./docs/LOGGING.md)
+
 ## Build for Production
 
 ```bash
 bun run build
-pm2 start ecosystem.config.cjs
+bun run start
 ```
 
 **In production:**
@@ -66,3 +87,9 @@ pm2 start ecosystem.config.cjs
 - Serves both API (`/api/*`) and static frontend (`/*` from `dist/`)
 - No separate Vite server needed
 - Frontend available at `http://localhost:3006`
+
+**Alternative: PM2 (requires Bun in PATH)**
+```bash
+bun run build
+pm2 start ecosystem.config.cjs
+```

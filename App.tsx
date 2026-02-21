@@ -9,6 +9,7 @@ import {
   fetchProjects,
   fetchProjectStatus,
   commitChanges as apiCommitChanges,
+  commitAllChanges as apiCommitAllChanges,
   checkoutBranch as apiCheckoutBranch,
   stageFiles as apiStageFiles,
   unstageFiles as apiUnstageFiles,
@@ -17,6 +18,12 @@ import {
   createBranch as apiCreateBranch,
   saveConfig
 } from './services/apiService';
+
+interface Toast {
+  id: number;
+  type: 'success' | 'error';
+  message: string;
+}
 
 const SETTINGS_KEY = 'gitlens_settings_v1';
 
@@ -37,6 +44,16 @@ const App: React.FC = () => {
   const [settingsJson, setSettingsJson] = useState('');
   const [aiInput, setAiInput] = useState('');
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isCommitting, setIsCommitting] = useState(false);
+
+  const showToast = useCallback((type: 'success' | 'error', message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
 
   // Load projects from API on mount
   useEffect(() => {
@@ -112,14 +129,37 @@ const App: React.FC = () => {
 
   const handleCommit = async (projectId: string, message: string) => {
     try {
+      setIsCommitting(true);
       const updatedProject = await apiCommitChanges(projectId, message);
       setState(prev => ({
         ...prev,
         projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
       }));
-    } catch (err) {
+      showToast('success', `Commit successful: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);      
+    } catch (err: any) {
       console.error('Commit error:', err);
-      alert('Failed to commit changes');
+      const errorMessage = err?.message || 'Failed to commit changes';
+      showToast('error', errorMessage);
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  const handleCommitAll = async (projectId: string, message: string) => {
+    try {
+      setIsCommitting(true);
+      const updatedProject = await apiCommitAllChanges(projectId, message);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+      showToast('success', `All changes committed: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);      
+    } catch (err: any) {
+      console.error('Commit all error:', err);
+      const errorMessage = err?.message || 'Failed to commit all changes';
+      showToast('error', errorMessage);
+    } finally {
+      setIsCommitting(false);
     }
   };
 
@@ -317,12 +357,14 @@ const App: React.FC = () => {
           <ProjectDetails 
             project={activeProject} 
             onCommit={handleCommit}
+            onCommitAll={handleCommitAll}
             onRefresh={handleRefresh}
             onBranchSwitch={handleBranchSwitch}
             onStageFile={handleStageFile}
             onUnstageFile={handleUnstageFile}
             onStageAll={handleStageAll}
             onCreateBranch={handleCreateBranch}
+            isCommitting={isCommitting}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-800 opacity-20">
@@ -361,6 +403,29 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`px-4 py-3 rounded-lg shadow-xl backdrop-blur-sm border max-w-sm animate-slide-in ${
+              toast.type === 'success' 
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
+                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              <span className={`text-sm flex-shrink-0 ${
+                toast.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+              }`}>
+                {toast.type === 'success' ? '✓' : '✕'}
+              </span>
+              <span className="text-xs font-medium">{toast.message}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

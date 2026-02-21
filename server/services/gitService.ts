@@ -1,5 +1,6 @@
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { GitStatus, FileChangeType, FileChange, Project } from '../../types';
+import { logger, LogCategory } from '../logger';
 
 interface ProjectConfig {
   id: string;
@@ -87,6 +88,11 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
   const git: SimpleGit = simpleGit(projectPath);
 
   try {
+    logger.debug(LogCategory.GIT, `Getting status for project: ${project.name}`, {
+      projectId: project.id,
+      path: projectPath
+    });
+    
     const [status, branchSummary, log] = await Promise.all([
       git.status(),
       git.branchLocal(),
@@ -106,8 +112,12 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
       lastCommitMessage: log?.latest?.message,
       lastCommitDate: log?.latest?.date ? formatDate(log.latest.date) : undefined
     };
-  } catch (error) {
-    console.error(`Error getting status for ${project.name}:`, error);
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, `Error getting status for ${project.name}`, {
+      projectId: project.id,
+      path: projectPath,
+      error: error.message
+    });
     return {
       id: project.id,
       name: project.name,
@@ -124,42 +134,78 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
 export async function stageFiles(projectPath: string, files: string[]): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Staging files', {
+    path: resolvedPath,
+    filesCount: files.length
+  });
   await git.add(files);
 }
 
 export async function unstageFiles(projectPath: string, files: string[]): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Unstaging files', {
+    path: resolvedPath,
+    filesCount: files.length
+  });
   await git.reset(['HEAD', '--', ...files]);
 }
 
 export async function stageAllFiles(projectPath: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Staging all files', { path: resolvedPath });
   await git.add('-A');
 }
 
 export async function unstageAllFiles(projectPath: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Unstaging all files', { path: resolvedPath });
   await git.reset(['HEAD']);
 }
 
 export async function commitChanges(projectPath: string, message: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
-  await git.commit(message);
+  
+  // Check if there are staged files before committing
+  const status = await git.status();
+  if (status.staged.length === 0) {
+    throw new Error('Nothing to commit. Stage some files first.');
+  }
+  
+  logger.debug(LogCategory.GIT, 'Committing changes', {
+    path: resolvedPath,
+    message: message.substring(0, 50),
+    stagedFiles: status.staged.length
+  });
+  
+  const result = await git.commit(message);
+  
+  // Verify commit actually happened
+  if (!result.commit) {
+    throw new Error('Commit failed - no changes were committed');
+  }
 }
 
 export async function checkoutBranch(projectPath: string, branch: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Checking out branch', {
+    path: resolvedPath,
+    branch
+  });
   await git.checkout(branch);
 }
 
 export async function createBranch(projectPath: string, branchName: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Creating new branch', {
+    path: resolvedPath,
+    branchName
+  });
   await git.checkoutLocalBranch(branchName);
 }
 

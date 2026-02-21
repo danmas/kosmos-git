@@ -46,6 +46,19 @@
     .resizer-h:hover, .resizer-v:hover {
       background-color: rgba(59, 130, 246, 0.4);
     }
+    @keyframes slide-in {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
   </style>
 </head>
 <body>

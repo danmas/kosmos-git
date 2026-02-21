@@ -59,6 +59,8 @@ interface ProjectDetailsProps {
   onUnstageFile: (projectId: string, filePath: string) => void;
   onStageAll: (projectId: string) => void;
   onCreateBranch: (projectId: string, branchName: string) => void;
+  onCommitAll: (projectId: string, message: string) => void;
+  isCommitting?: boolean;
 }
 
 export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ 
@@ -69,7 +71,9 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onStageFile,
   onUnstageFile,
   onStageAll,
-  onCreateBranch
+  onCreateBranch,
+  onCommitAll,
+  isCommitting = false
 }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -243,10 +247,29 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         <div className="flex gap-1.5">
           <button 
             onClick={() => { onCommit(project.id, commitMessage); setCommitMessage(''); }} 
-            disabled={!commitMessage.trim()} 
-            className="flex-grow bg-blue-600/90 hover:bg-blue-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-widest py-2 rounded shadow-lg shadow-blue-500/5 transition-all active:scale-[0.98]"
+            disabled={!commitMessage.trim() || isCommitting || stagedChanges.length === 0} 
+            className="flex-grow bg-blue-600/90 hover:bg-blue-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-widest py-2 rounded shadow-lg shadow-blue-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
-            Commit to {project.branch}
+            {isCommitting ? (
+              <>
+                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                Committing...
+              </>
+            ) : (
+              <>Commit to {project.branch}</>
+            )}
+          </button>
+          <button 
+            onClick={() => { onCommitAll(project.id, commitMessage); setCommitMessage(''); }} 
+            disabled={!commitMessage.trim() || isCommitting || project.changes.length === 0} 
+            className="bg-emerald-600/90 hover:bg-emerald-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-wider px-3 py-2 rounded shadow-lg shadow-emerald-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
+            title="Stage all files and commit (like git commit -a)"
+          >
+            {isCommitting ? (
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            ) : (
+              <>+ Commit All</>
+            )}
           </button>
           <button 
             onClick={() => onStageAll(project.id)}

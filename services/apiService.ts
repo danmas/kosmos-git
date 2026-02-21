@@ -71,14 +71,35 @@ export async function unstageAllFiles(projectId: string): Promise<Project> {
   return response.json();
 }
 
-export async function commitChanges(projectId: string, message: string): Promise<Project> {
+export interface CommitResult extends Project {
+  commitSuccess?: boolean;
+  commitMessage?: string;
+}
+
+export async function commitChanges(projectId: string, message: string): Promise<CommitResult> {
   const response = await fetch(`${API_BASE}/projects/${projectId}/commit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message })
   });
   if (!response.ok) {
-    throw new Error('Failed to commit changes');
+    const errorData = await response.json().catch(() => ({}));
+    const details = errorData.details || errorData.error || 'Failed to commit changes';
+    throw new Error(details);
+  }
+  return response.json();
+}
+
+export async function commitAllChanges(projectId: string, message: string): Promise<CommitResult> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/commit-all`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const details = errorData.details || errorData.error || 'Failed to commit changes';
+    throw new Error(details);
   }
   return response.json();
 }

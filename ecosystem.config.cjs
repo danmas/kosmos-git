@@ -3,7 +3,8 @@ module.exports = {
     {
       name: 'kosmos-git',
       script: 'server/index.ts',
-      interpreter: 'bun',
+      interpreter: 'C:\\Users\\roman\\.bun\\bin\\bun.exe',
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3006
