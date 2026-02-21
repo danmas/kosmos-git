@@ -155,9 +155,17 @@ router.post('/:id/checkout', async (req: Request<{ id: string }>, res: Response)
     await checkoutBranch(project.path, branch);
     const status = await getProjectStatus(project);
     res.json(status);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error checking out branch:', error);
-    res.status(500).json({ error: 'Failed to checkout branch' });
+    // Extract detailed error message from Git
+    const gitMessage = error?.message || error?.toString() || '';
+    const detailedError = gitMessage.includes('error:') 
+      ? gitMessage.split('error:').slice(1).join('error:').trim()
+      : gitMessage;
+    res.status(500).json({ 
+      error: 'Failed to checkout branch',
+      details: detailedError || 'Unknown error occurred'
+    });
   }
 });
 

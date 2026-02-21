@@ -1,20 +1,66 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# GitLens Dashboard
 
-# Run and deploy your AI Studio app
+Git repository manager with status monitoring and branch management.
 
-This contains everything you need to run your app locally.
+## Prerequisites
 
-View your app in AI Studio: https://ai.studio/apps/drive/1kRgOkgCn6q0Bm2Ot_ZW7EISjbd88ZLER
+- Node.js (v18 or higher)
+- Bun (recommended) or npm
 
-## Run Locally
+## Installation
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+# or
+bun install
+```
 
+## Configuration
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Copy the example config file:
+   ```bash
+   cp config.json.exemple config.json
+   ```
+
+2. Edit `config.json` with your Git project paths:
+   ```json
+   {
+     "pollInterval": 60,
+     "projects": [
+       {
+         "id": "unique-id",
+         "name": "Project Name",
+         "path": "C:/full/path/to/repo"
+       }
+     ]
+   }
+   ```
+
+   **Note:** Use forward slashes (`/`) in paths, even on Windows.
+
+## Running the Application
+
+You need to run **two servers** simultaneously:
+
+### Terminal 1 - Backend API Server (port 3007)
+```bash
+npm run dev:server
+# or
+bun run dev:server
+```
+
+### Terminal 2 - Frontend Dev Server
+```bash
+npm run dev
+# or
+bun run dev
+```
+
+The application will be available at `http://localhost:5173` (Vite default port)
+
+## Build for Production
+
+```bash
+npm run build
+npm run preview
+```

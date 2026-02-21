@@ -90,7 +90,9 @@ export async function checkoutBranch(projectId: string, branch: string): Promise
     body: JSON.stringify({ branch })
   });
   if (!response.ok) {
-    throw new Error('Failed to checkout branch');
+    const errorData = await response.json().catch(() => ({}));
+    const details = errorData.details || errorData.error || 'Failed to checkout branch';
+    throw new Error(details);
   }
   return response.json();
 }
