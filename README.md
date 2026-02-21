@@ -42,25 +42,27 @@ bun install
 
 You need to run **two servers** simultaneously:
 
-### Terminal 1 - Backend API Server (port 3007)
+### Terminal 1 - Backend API Server (port 3006)
 ```bash
-npm run dev:server
-# or
 bun run dev:server
 ```
 
-### Terminal 2 - Frontend Dev Server
+### Terminal 2 - Frontend Dev Server (port 3007)
 ```bash
-npm run dev
-# or
 bun run dev
 ```
 
-The application will be available at `http://localhost:5173` (Vite default port)
+The application will be available at `http://localhost:3007`
 
 ## Build for Production
 
 ```bash
-npm run build
-npm run preview
+bun run build
+pm2 start ecosystem.config.cjs
 ```
+
+**In production:**
+- Single Express server on port **3006**
+- Serves both API (`/api/*`) and static frontend (`/*` from `dist/`)
+- No separate Vite server needed
+- Frontend available at `http://localhost:3006`
