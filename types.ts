@@ -1,0 +1,36 @@
+
+export enum GitStatus {
+  CLEAN = 'CLEAN',
+  DIRTY = 'DIRTY',
+  AHEAD = 'AHEAD',
+  CONFLICT = 'CONFLICT'
+}
+
+export enum FileChangeType {
+  MODIFIED = 'M',
+  ADDED = 'A',
+  DELETED = 'D',
+  RENAMED = 'R'
+}
+
+export interface FileChange {
+  path: string;
+  type: FileChangeType;
+  staged: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  path: string;
+  branch: string;
+  status: GitStatus;
+  changes: FileChange[];
+  lastCommitMessage?: string;
+  lastCommitDate?: string;
+}
+
+export interface AppState {
+  projects: Project[];
+  activeProjectId: string | null;
+}

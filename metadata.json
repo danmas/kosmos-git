@@ -1,0 +1,5 @@
+{
+  "name": "GitLens Dashboard",
+  "description": "A high-fidelity dark-themed dashboard for visualizing the Git status of multiple local projects, featuring status indicators, file change tracking, and AI-powered commit message generation.",
+  "requestFramePermissions": []
+}
