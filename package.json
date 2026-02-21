@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "bun --watch server/index.ts",
     "build": "vite build",
+    "start": "NODE_ENV=production bun server/index.ts",
     "preview": "vite preview"
   },
   "dependencies": {

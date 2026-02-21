@@ -165,9 +165,10 @@ const App: React.FC = () => {
         ...prev,
         projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Branch switch failed:', error);
-      alert('Failed to switch branch');
+      const errorMessage = error?.message || 'Failed to switch branch';
+      alert(`Branch switch failed:\n${errorMessage}`);
     }
   };
 
