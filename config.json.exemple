@@ -1,0 +1,26 @@
+
+{
+  "pollInterval": 60,
+  "projects": [
+    {
+      "id": "p1",
+      "name": "frontend-core",
+      "path": "~/projects/frontend-core"
+    },
+    {
+      "id": "p2",
+      "name": "backend-api",
+      "path": "~/projects/backend-api"
+    },
+    {
+      "id": "p3",
+      "name": "shared-ui-lib",
+      "path": "~/work/ui-lib"
+    },
+    {
+      "id": "p4",
+      "name": "documentation-site",
+      "path": "~/projects/docs"
+    }
+  ]
+}
