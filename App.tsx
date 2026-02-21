@@ -17,7 +17,8 @@ import {
   unstageAllFiles as apiUnstageAllFiles,
   createBranch as apiCreateBranch,
   mergeDevToMain as apiMergeDevToMain,
-  saveConfig
+  saveConfig,
+  getConfig
 } from './services/apiService';
 
 interface Toast {
@@ -62,14 +63,17 @@ const App: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
-        const { projects, pollInterval } = await fetchProjects();
+        const [{ projects, pollInterval }, config] = await Promise.all([
+          fetchProjects(),
+          getConfig()
+        ]);
         setState(prev => ({
           ...prev,
           projects,
           activeProjectId: projects[0]?.id || null,
-          settings: { ...prev.settings, pollInterval, projects: projects.map(p => ({ id: p.id, name: p.name, path: p.path })) }
+          settings: config
         }));
-        setSettingsJson(JSON.stringify({ pollInterval, projects: projects.map(p => ({ id: p.id, name: p.name, path: p.path })) }, null, 2));
+        setSettingsJson(JSON.stringify(config, null, 2));
       } catch (err) {
         console.error('Failed to load projects:', err);
         setError('Failed to connect to server. Make sure backend is running.');
@@ -107,7 +111,7 @@ const App: React.FC = () => {
   // Polling - refresh all projects periodically
   useEffect(() => {
     if (state.projects.length === 0) return;
-    
+
     const intervalId = setInterval(async () => {
       try {
         const updatedProjects = await Promise.all(
@@ -118,7 +122,7 @@ const App: React.FC = () => {
         console.error('Polling error:', err);
       }
     }, state.settings.pollInterval * 1000);
-    
+
     return () => clearInterval(intervalId);
   }, [state.projects.length, state.settings.pollInterval]);
 
@@ -136,7 +140,7 @@ const App: React.FC = () => {
         ...prev,
         projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
       }));
-      showToast('success', `Commit successful: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);      
+      showToast('success', `Commit successful: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);
     } catch (err: any) {
       console.error('Commit error:', err);
       const errorMessage = err?.message || 'Failed to commit changes';
@@ -154,7 +158,7 @@ const App: React.FC = () => {
         ...prev,
         projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
       }));
-      showToast('success', `All changes committed: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);      
+      showToast('success', `All changes committed: "${message.substring(0, 30)}${message.length > 30 ? '...' : ''}"`);
     } catch (err: any) {
       console.error('Commit all error:', err);
       const errorMessage = err?.message || 'Failed to commit all changes';
@@ -243,7 +247,7 @@ const App: React.FC = () => {
     try {
       setIsCommitting(true);
       const result = await apiMergeDevToMain(projectId);
-      
+
       if (result.success) {
         // Refresh project status after successful merge
         const updatedProject = await fetchProjectStatus(projectId);
@@ -252,10 +256,10 @@ const App: React.FC = () => {
           projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
         }));
         showToast('success', 'dev->main merge completed successfully');
-        
+
         // Show detailed report in console
         console.log('Merge Report:\n', result.report);
-        
+
         // Optional: show report in alert or modal
         alert(`Merge Report:\n\n${result.report}`);
       } else {
@@ -275,13 +279,28 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOpenSettings = async () => {
+    try {
+      const config = await getConfig();
+      setSettingsJson(JSON.stringify(config, null, 2));
+      setState(prev => ({
+        ...prev,
+        settings: config,
+        showSettings: true
+      }));
+    } catch (err) {
+      console.error('Failed to reload settings:', err);
+      setState(prev => ({ ...prev, showSettings: true }));
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       const parsed = JSON.parse(settingsJson);
-      
+
       // Save to backend via API
       const { projects, pollInterval } = await saveConfig(parsed);
-      
+
       setState(prev => ({
         ...prev,
         projects,
@@ -289,7 +308,7 @@ const App: React.FC = () => {
         showSettings: false,
         activeProjectId: projects[0]?.id || prev.activeProjectId
       }));
-      
+
       localStorage.setItem(SETTINGS_KEY, settingsJson);
     } catch (e) {
       console.error('Save error:', e);
@@ -304,9 +323,9 @@ const App: React.FC = () => {
     if (parsed) {
       const newProjectSettings = { id: `p-${Date.now()}`, name: parsed.name, path: parsed.path };
       const updatedSettings = { ...state.settings, projects: [...state.settings.projects, newProjectSettings] };
-      setState(prev => ({ 
-        ...prev, 
-        settings: updatedSettings, 
+      setState(prev => ({
+        ...prev,
+        settings: updatedSettings,
         showAIAdd: false,
         activeProjectId: newProjectSettings.id
       }));
@@ -338,8 +357,8 @@ const App: React.FC = () => {
             </div>
             <p className="text-xs font-bold uppercase tracking-widest text-rose-400 mb-2">Connection Error</p>
             <p className="text-xs text-slate-500 mb-4">{error}</p>
-            <button 
-              onClick={() => window.location.reload()} 
+            <button
+              onClick={() => window.location.reload()}
               className="bg-slate-800 text-white text-[9px] font-black uppercase px-4 py-2 rounded"
             >
               Retry
@@ -348,7 +367,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <aside 
+      <aside
         style={{ width: `${sidebarWidth}px` }}
         className="border-r border-slate-800/40 bg-slate-900/30 flex flex-col backdrop-blur-md relative"
       >
@@ -361,18 +380,18 @@ const App: React.FC = () => {
           </div>
           <div className="flex gap-[2px] flex-shrink-0">
             <button onClick={() => setState(prev => ({ ...prev, showAIAdd: true }))} className="p-1 rounded hover:bg-slate-800 text-blue-500/80"><Icons.Sparkles className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setState(prev => ({ ...prev, showSettings: true }))} className="p-1 rounded hover:bg-slate-800 text-slate-500"><Icons.Settings className="w-3.5 h-3.5" /></button>
+            <button onClick={handleOpenSettings} className="p-1 rounded hover:bg-slate-800 text-slate-500"><Icons.Settings className="w-3.5 h-3.5" /></button>
           </div>
         </div>
 
         <nav className="flex-grow overflow-y-auto custom-scrollbar px-1">
           <div className="px-1.5 py-1 mb-1">
-             <h2 className="text-[9px] font-black uppercase text-slate-600 tracking-[0.2em]">Workspace</h2>
+            <h2 className="text-[9px] font-black uppercase text-slate-600 tracking-[0.2em]">Workspace</h2>
           </div>
           {state.projects.map(project => (
-            <ProjectTab 
-              key={project.id} 
-              project={project} 
+            <ProjectTab
+              key={project.id}
+              project={project}
               isActive={state.activeProjectId === project.id}
               onClick={() => handleProjectClick(project.id)}
             />
@@ -380,10 +399,10 @@ const App: React.FC = () => {
         </nav>
 
         <div className="mt-auto p-1.5 bg-slate-900/50 border-t border-slate-800/40">
-           <span className="text-[9px] text-emerald-500 flex items-center gap-1 uppercase font-bold tracking-tighter">
-             <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>
-             Poll: {state.settings.pollInterval}s
-           </span>
+          <span className="text-[9px] text-emerald-500 flex items-center gap-1 uppercase font-bold tracking-tighter">
+            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>
+            Poll: {state.settings.pollInterval}s
+          </span>
         </div>
 
         <div onMouseDown={startResizingSidebar} className="absolute right-[-1px] top-0 bottom-0 w-[3px] bg-transparent hover:bg-blue-500/40 cursor-col-resize z-20" />
@@ -391,8 +410,8 @@ const App: React.FC = () => {
 
       <main className="flex-grow flex flex-col p-[2px] overflow-hidden">
         {activeProject ? (
-          <ProjectDetails 
-            project={activeProject} 
+          <ProjectDetails
+            project={activeProject}
             onCommit={handleCommit}
             onCommitAll={handleCommitAll}
             onRefresh={handleRefresh}
@@ -416,12 +435,12 @@ const App: React.FC = () => {
       {state.showAIAdd && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl p-4 flex flex-col gap-3 shadow-2xl">
-             <h3 className="text-xs font-black uppercase tracking-widest text-blue-400">AI Add Project</h3>
-             <input autoFocus value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAIAddProject()} placeholder="Describe folder path..." className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-blue-500/30" />
-             <div className="flex justify-end gap-2">
-                <button onClick={() => setState(prev => ({ ...prev, showAIAdd: false }))} className="text-xs text-slate-500 font-bold uppercase px-3">Cancel</button>
-                <button onClick={handleAIAddProject} className="bg-blue-600 text-white text-xs font-black uppercase px-4 py-1.5 rounded">{isAiProcessing ? "..." : "Add"}</button>
-             </div>
+            <h3 className="text-xs font-black uppercase tracking-widest text-blue-400">AI Add Project</h3>
+            <input autoFocus value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAIAddProject()} placeholder="Describe folder path..." className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-blue-500/30" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setState(prev => ({ ...prev, showAIAdd: false }))} className="text-xs text-slate-500 font-bold uppercase px-3">Cancel</button>
+              <button onClick={handleAIAddProject} className="bg-blue-600 text-white text-xs font-black uppercase px-4 py-1.5 rounded">{isAiProcessing ? "..." : "Add"}</button>
+            </div>
           </div>
         </div>
       )}
@@ -447,16 +466,14 @@ const App: React.FC = () => {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`px-4 py-3 rounded-lg shadow-xl backdrop-blur-sm border max-w-sm animate-slide-in ${
-              toast.type === 'success' 
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
-                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-            }`}
+            className={`px-4 py-3 rounded-lg shadow-xl backdrop-blur-sm border max-w-sm animate-slide-in ${toast.type === 'success'
+              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+              : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+              }`}
           >
             <div className="flex items-start gap-2">
-              <span className={`text-sm flex-shrink-0 ${
-                toast.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
-              }`}>
+              <span className={`text-sm flex-shrink-0 ${toast.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                }`}>
                 {toast.type === 'success' ? '✓' : '✕'}
               </span>
               <span className="text-xs font-medium">{toast.message}</span>

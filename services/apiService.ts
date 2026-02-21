@@ -130,6 +130,15 @@ export async function createBranch(projectId: string, branchName: string): Promi
   return response.json();
 }
 
+// Get raw config.json from server
+export async function getConfig(): Promise<any> {
+  const response = await fetch(`${API_BASE}/projects/config`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch config');
+  }
+  return response.json();
+}
+
 // Refresh single project status
 export async function refreshProject(projectId: string): Promise<Project> {
   return fetchProjectStatus(projectId);
@@ -150,9 +159,9 @@ export async function mergeDevToMain(projectId: string): Promise<{
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   });
-  
+
   const data = await response.json();
-  
+
   if (!response.ok) {
     return {
       success: false,
@@ -160,7 +169,7 @@ export async function mergeDevToMain(projectId: string): Promise<{
       error: data.error || data.details || 'Failed to merge dev->main'
     };
   }
-  
+
   return {
     success: true,
     report: data.mergeReport || 'Merge completed successfully',

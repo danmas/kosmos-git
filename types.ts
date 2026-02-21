@@ -33,7 +33,7 @@ export interface Project {
 }
 
 export interface AppSettings {
-  projects: Array<{ id: string; name: string; path: string }>;
+  projects: Array<{ id: string; name: string; path: string; locked?: boolean }>;
   pollInterval: number; // seconds
 }
 
