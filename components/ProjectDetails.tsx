@@ -11,9 +11,9 @@ interface FileItemProps {
 const FileItem: React.FC<FileItemProps> = ({ change }) => {
   const getTheme = () => {
     switch (change.type) {
-      case FileChangeType.ADDED: return { text: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-500/20', icon: 'A' };
+      case FileChangeType.ADDED: return { text: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-500/20', icon: 'A' };
       case FileChangeType.MODIFIED: return { text: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-500/20', icon: 'M' };
-      case FileChangeType.DELETED: return { text: 'text-rose-400', bg: 'bg-rose-400/10', border: 'border-rose-500/20', icon: 'D' };
+      case FileChangeType.DELETED: return { text: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-500/20', icon: 'D' };
       default: return { text: 'text-slate-400', bg: 'bg-slate-400/5', border: 'border-slate-400/10', icon: '?' };
     }
   };
@@ -21,10 +21,10 @@ const FileItem: React.FC<FileItemProps> = ({ change }) => {
   return (
     <div className="flex items-center justify-between py-1.5 px-3 hover:bg-slate-800/60 transition-all group rounded border border-transparent hover:border-slate-800 mb-1">
       <div className="flex items-center gap-3 min-w-0">
-        <div className={`w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-black mono border shadow-sm ${theme.border} ${theme.bg} ${theme.text}`}>{theme.icon}</div>
+        <div className={`w-4 h-4 rounded-sm flex items-center justify-center text-[10px] font-black mono border shadow-sm ${theme.border} ${theme.bg} ${theme.text}`}>{theme.icon}</div>
         <div className="flex flex-col min-w-0">
-           <span className="mono text-[11px] text-slate-200 truncate group-hover:text-white leading-none mb-0.5">{change.path.split('/').pop()}</span>
-           <span className="mono text-[8px] text-slate-600 truncate opacity-60 leading-none">{change.path}</span>
+           <span className="mono text-[13px] text-slate-200 truncate group-hover:text-white leading-none mb-0.5">{change.path.split('/').pop()}</span>
+           <span className="mono text-[10px] text-slate-600 truncate opacity-60 leading-none">{change.path}</span>
         </div>
       </div>
       {change.staged && (
@@ -39,13 +39,19 @@ interface ProjectDetailsProps {
   onCommit: (projectId: string, message: string) => void;
   onRefresh: (projectId: string) => void;
   onBranchSwitch: (projectId: string, branch: string) => void;
+  onStageFile?: (projectId: string, filePath: string) => void;
+  onUnstageFile?: (projectId: string, filePath: string) => void;
+  onStageAll?: (projectId: string) => void;
+  onCreateBranch?: (projectId: string, branchName: string) => void;
 }
 
-export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommit, onRefresh, onBranchSwitch }) => {
+export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommit, onRefresh, onBranchSwitch, onStageFile, onUnstageFile, onStageAll, onCreateBranch }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [commitPanelHeight, setCommitPanelHeight] = useState(90);
   const [isResizing, setIsResizing] = useState(false);
+  const [showNewBranch, setShowNewBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const startResizing = useCallback(() => setIsResizing(true), []);
@@ -113,13 +119,13 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
       {/* Detail Header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/40 border border-slate-800/40 rounded-t-lg flex-shrink-0 backdrop-blur-sm">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <h2 className="text-[11px] font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
+          <h2 className="text-[13px] font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade-right">
             {sortedBranches.map(b => (
               <button 
                 key={b} 
                 onClick={() => onBranchSwitch(project.id, b)} 
-                className={`px-2 py-0.5 rounded border text-[9px] mono font-bold transition-all whitespace-nowrap ${
+                className={`px-2 py-0.5 rounded border text-[11px] mono font-bold transition-all whitespace-nowrap ${
                   b === project.branch 
                     ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]' 
                     : 'bg-slate-800/40 border-slate-700/50 text-slate-600 hover:text-slate-400 hover:border-slate-700'
@@ -130,14 +136,19 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
             ))}
           </div>
         </div>
-        <button onClick={() => onRefresh(project.id)} className="p-1.5 rounded text-slate-600 hover:text-slate-300 transition-colors"><Icons.Refresh className="w-3.5 h-3.5" /></button>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => onRefresh(project.id)} className="p-1 rounded text-slate-600 hover:text-slate-300 transition-colors"><Icons.Refresh className="w-3 h-3" /></button>
+          {onCreateBranch && (
+            <button onClick={() => setShowNewBranch(true)} className="p-1 rounded text-slate-600 hover:text-emerald-400 transition-colors" title="Create branch"><Icons.Plus className="w-3 h-3" /></button>
+          )}
+        </div>
       </div>
 
       {/* File List Area */}
       <div className="flex-grow flex flex-col min-h-0 bg-slate-900/20 border border-slate-800/40 overflow-hidden shadow-inner">
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800/30 bg-slate-900/40">
-          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500">Staged & Unstaged Changes</span>
-          <span className="mono text-[8px] text-slate-700 font-bold">{project.changes.length} files</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Staged & Unstaged Changes</span>
+          <span className="mono text-[10px] text-slate-700 font-bold">{project.changes.length} files</span>
         </div>
         <div className="overflow-y-auto flex-grow p-2 custom-scrollbar">
           {project.changes.length > 0 ? (
@@ -158,7 +169,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-800 opacity-20">
               <Icons.Check className="w-8 h-8 mb-2" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Workspace Clean</span>
+              <span className="text-[12px] font-black uppercase tracking-[0.2em]">Workspace Clean</span>
             </div>
           )}
         </div>
@@ -170,8 +181,8 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
       {/* Commit Panel */}
       <div style={{ height: `${commitPanelHeight}px` }} className="flex-shrink-0 bg-slate-900/30 border border-slate-800/40 rounded-b-lg p-2 flex flex-col gap-2 overflow-hidden backdrop-blur-sm">
         <div className="flex justify-between items-center px-0.5">
-          <span className="text-[8px] font-black uppercase text-slate-600 tracking-[0.2em]">Commit Message</span>
-          <button onClick={handleAISuggest} disabled={isGenerating || project.changes.length === 0} className="flex items-center gap-1.5 text-[8px] font-black text-blue-500/80 uppercase hover:text-blue-400 disabled:opacity-20 transition-all">
+          <span className="text-[10px] font-black uppercase text-slate-600 tracking-[0.2em]">Commit Message</span>
+          <button onClick={handleAISuggest} disabled={isGenerating || project.changes.length === 0} className="flex items-center gap-1.5 text-[10px] font-black text-blue-500/80 uppercase hover:text-blue-400 disabled:opacity-20 transition-all">
             <Icons.Sparkles className={`w-2.5 h-2.5 ${isGenerating ? 'animate-spin' : ''}`} /> {isGenerating ? 'ANALYZING...' : 'AI SUGGEST'}
           </button>
         </div>
@@ -179,19 +190,51 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
           value={commitMessage} 
           onChange={(e) => setCommitMessage(e.target.value)} 
           placeholder="What's changed in this commit?..." 
-          className="w-full flex-grow bg-slate-950/60 border border-slate-800/60 rounded p-2 text-[11px] text-slate-300 outline-none focus:ring-1 focus:ring-blue-500/30 resize-none mono leading-relaxed placeholder-slate-800" 
+          className="w-full flex-grow bg-slate-950/60 border border-slate-800/60 rounded p-2 text-[13px] text-slate-300 outline-none focus:ring-1 focus:ring-blue-500/30 resize-none mono leading-relaxed placeholder-slate-800"
         />
         <div className="flex gap-1.5">
           <button 
             onClick={() => { onCommit(project.id, commitMessage); setCommitMessage(''); }} 
             disabled={!commitMessage.trim()} 
-            className="flex-grow bg-blue-600/90 hover:bg-blue-600 disabled:bg-slate-800/50 text-white text-[9px] font-black uppercase tracking-widest py-2 rounded shadow-lg shadow-blue-500/5 transition-all active:scale-[0.98]"
+            className="flex-grow bg-blue-600/90 hover:bg-blue-600 disabled:bg-slate-800/50 text-white text-[11px] font-black uppercase tracking-widest py-2 rounded shadow-lg shadow-blue-500/5 transition-all active:scale-[0.98]"
           >
             Commit to {project.branch}
           </button>
-          <button className="bg-slate-800/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 text-[9px] font-black uppercase px-3 py-2 rounded border border-slate-700/20 transition-all active:scale-[0.98]">+ Stage All</button>
+          <button onClick={() => onStageAll?.(project.id)} className="bg-slate-800/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 text-[11px] font-black uppercase px-3 py-2 rounded border border-slate-700/20 transition-all active:scale-[0.98]">+ Stage All</button>
         </div>
       </div>
+
+      {/* New Branch Modal */}
+      {showNewBranch && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 w-64 flex flex-col gap-2 shadow-xl">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">New Branch</h4>
+            <input 
+              autoFocus
+              value={newBranchName} 
+              onChange={(e) => setNewBranchName(e.target.value)} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newBranchName.trim()) {
+                  onCreateBranch?.(project.id, newBranchName.trim());
+                  setNewBranchName('');
+                  setShowNewBranch(false);
+                }
+                if (e.key === 'Escape') setShowNewBranch(false);
+              }}
+              placeholder="feature/my-branch" 
+              className="bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-[12px] text-slate-200 mono outline-none focus:ring-1 focus:ring-emerald-500/30"
+            />
+            <div className="flex justify-end gap-1">
+              <button onClick={() => setShowNewBranch(false)} className="text-[8px] text-slate-500 font-bold uppercase px-2">Cancel</button>
+              <button 
+                onClick={() => { onCreateBranch?.(project.id, newBranchName.trim()); setNewBranchName(''); setShowNewBranch(false); }}
+                disabled={!newBranchName.trim()}
+                className="bg-emerald-600 disabled:bg-slate-700 text-white text-[8px] font-black uppercase px-3 py-1 rounded"
+              >Create</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

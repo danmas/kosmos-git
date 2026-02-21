@@ -2,16 +2,31 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FileChange } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization - only create when API key is available
+let ai: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI | null {
+  if (ai) return ai;
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('Gemini API key not set. AI features disabled.');
+    return null;
+  }
+  ai = new GoogleGenAI({ apiKey });
+  return ai;
+}
 
 export async function generateCommitMessage(changes: FileChange[]): Promise<string> {
+  const client = getAI();
+  if (!client) return "chore: update files";
+
   const changeSummary = changes
     .map(c => `${c.type}: ${c.path}`)
     .join('\n');
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+    const response = await client.models.generateContent({
+      model: 'gemini-2.0-flash',
       contents: `Generate a short, concise, and professional Git commit message (one line) for the following file changes:\n${changeSummary}`,
       config: {
         temperature: 0.7,
@@ -27,9 +42,12 @@ export async function generateCommitMessage(changes: FileChange[]): Promise<stri
 }
 
 export async function parseProjectInput(input: string): Promise<{ name: string; path: string } | null> {
+  const client = getAI();
+  if (!client) return null;
+
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+    const response = await client.models.generateContent({
+      model: 'gemini-2.0-flash',
       contents: `Parse the following user request to add a project. Extract the project name and the file path. 
       If no name is explicitly provided, infer a short, slug-style name from the path.
       Return ONLY valid JSON.

@@ -32,7 +32,7 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
             <span className={`text-[11px] font-bold truncate ${isActive ? 'text-white' : 'text-slate-400'}`}>
               {project.name}
             </span>
-            <span className="text-[9px] text-slate-600 italic flex-shrink-0 truncate opacity-60">
+            <span className="text-[9px] text-slate-500 italic flex-shrink-0 truncate">
               ({project.branch})
             </span>
           </div>

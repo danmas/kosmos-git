@@ -29,74 +29,22 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadProjects = async () => {
       try {
+        console.log('Loading projects from API...');
         const data = await api.fetchProjects();
+        console.log('Projects loaded:', data);
         setState(prev => ({
           ...prev,
           projects: data.projects,
           activeProjectId: data.projects[0]?.id || '',
           settings: { ...prev.settings, pollInterval: data.pollInterval }
         }));
+        setSettingsJson(JSON.stringify({ pollInterval: data.pollInterval, projects: data.projects.map(p => ({ id: p.id, name: p.name, path: p.path })) }, null, 2));
       } catch (error) {
         console.error('Failed to load projects from API:', error);
       }
     };
     loadProjects();
   }, []);
-
-  // Load configuration from config.json on mount
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const response = await fetch('./config.json');
-        const config: AppSettings = await response.json();
-        
-        setState(prev => ({
-          ...prev,
-          settings: config,
-          // We'll let the synchronization effect below handle the projects list
-        }));
-        setSettingsJson(JSON.stringify(config, null, 2));
-      } catch (error) {
-        console.error("Failed to load config.json, using defaults", error);
-        const saved = localStorage.getItem(SETTINGS_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setState(prev => ({ ...prev, settings: parsed }));
-          setSettingsJson(saved);
-        }
-      }
-    };
-    loadConfig();
-  }, []);
-
-  // Synchronize projects state with settings whenever settings change
-  useEffect(() => {
-    setState(prev => {
-      const newProjects = prev.settings.projects.map(sp => {
-        const existing = prev.projects.find(p => p.id === sp.id);
-        if (existing) {
-          // Update names and paths from settings, preserve dynamic git state
-          return { ...existing, name: sp.name, path: sp.path };
-        }
-        // If it's a brand new project added to the JSON manually
-        return {
-          id: sp.id,
-          name: sp.name,
-          path: sp.path,
-          branch: 'main',
-          branches: ['main', 'develop'],
-          status: GitStatus.CLEAN,
-          changes: []
-        };
-      });
-
-      // Avoid unnecessary state updates if nothing actually changed
-      const hasChanged = JSON.stringify(newProjects) !== JSON.stringify(prev.projects);
-      if (!hasChanged) return prev;
-
-      return { ...prev, projects: newProjects };
-    });
-  }, [state.settings]);
 
   // Resize Handlers
   const startResizingSidebar = useCallback(() => setIsResizingSidebar(true), []);
@@ -235,14 +183,60 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     try {
-      const parsed = JSON.parse(settingsJson);
-      // Updating state.settings will trigger the synchronization useEffect
-      setState(prev => ({ ...prev, settings: parsed, showSettings: false }));
-      localStorage.setItem(SETTINGS_KEY, settingsJson);
+      // Auto-fix Windows paths: escape backslashes properly for JSON
+      // Replace \ with / for paths (simpler and works everywhere)
+      let fixedJson = settingsJson;
+      
+      // Fix unescaped backslashes in paths by replacing them with forward slashes
+      fixedJson = fixedJson.replace(/"([^"]*?)\\([^"\\nrt\"])/g, (match, before, after) => {
+        // Keep replacing until no more single backslashes
+        let result = `"${before}/${after}`;
+        return result;
+      });
+      
+      // Multiple passes to catch all backslashes
+      for (let i = 0; i < 10; i++) {
+        fixedJson = fixedJson.replace(/("[^"]*?)\\([^"\\nrt])/g, '$1/$2');
+      }
+      
+      // Validate JSON first
+      const parsed = JSON.parse(fixedJson);
+      
+      // Validate structure
+      if (!parsed.pollInterval || !Array.isArray(parsed.projects)) {
+        alert('Invalid config structure. Required: { pollInterval: number, projects: [...] }');
+        return;
+      }
+      
+      // Validate paths (Windows backslashes must be escaped)
+      for (const project of parsed.projects) {
+        if (!project.id || !project.name || !project.path) {
+          alert('Each project must have: id, name, path');
+          return;
+        }
+      }
+      
+      // Save to server
+      const data = await api.saveConfig(parsed);
+      
+      // Update local state with projects from server
+      setState(prev => ({
+        ...prev,
+        projects: data.projects,
+        settings: { pollInterval: data.pollInterval, projects: data.projects.map(p => ({ id: p.id, name: p.name, path: p.path })) },
+        showSettings: false
+      }));
+      
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ pollInterval: data.pollInterval, projects: data.projects.map(p => ({ id: p.id, name: p.name, path: p.path })) }));
     } catch (e) {
-      alert("Invalid JSON configuration.");
+      console.error('Failed to save config:', e);
+      if (e instanceof SyntaxError) {
+        alert(`JSON syntax error: ${e.message}\n\nTip: Use forward slashes (/) or double backslashes (\\\\) in paths.`);
+      } else {
+        alert("Failed to save configuration. Check console for details.");
+      }
     }
   };
 
@@ -277,7 +271,7 @@ const App: React.FC = () => {
             <div className="w-5 h-5 rounded bg-blue-600 flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-500/10">
               <Icons.GitBranch className="text-white w-3 h-3" />
             </div>
-            <h1 className="text-[10px] font-black tracking-widest text-white uppercase truncate">GitLens</h1>
+            <h1 className="text-[12px] font-black tracking-widest text-white uppercase truncate">GitLens</h1>
           </div>
           <div className="flex gap-[2px] flex-shrink-0">
             <button onClick={() => setState(prev => ({ ...prev, showAIAdd: true }))} className="p-1 rounded hover:bg-slate-800 text-blue-500/80"><Icons.Sparkles className="w-3.5 h-3.5" /></button>
@@ -324,7 +318,7 @@ const App: React.FC = () => {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-800 opacity-20">
             <Icons.Folder className="w-10 h-10 mb-2" />
-            <p className="text-[9px] font-black uppercase tracking-widest">Select Folder</p>
+            <p className="text-[11px] font-black uppercase tracking-widest">Select Folder</p>
           </div>
         )}
       </main>
@@ -333,11 +327,11 @@ const App: React.FC = () => {
       {state.showAIAdd && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl p-4 flex flex-col gap-3 shadow-2xl">
-             <h3 className="text-[9px] font-black uppercase tracking-widest text-blue-400">AI Add Project</h3>
+             <h3 className="text-[11px] font-black uppercase tracking-widest text-blue-400">AI Add Project</h3>
              <input autoFocus value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAIAddProject()} placeholder="Describe folder path..." className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-blue-500/30" />
              <div className="flex justify-end gap-2">
-                <button onClick={() => setState(prev => ({ ...prev, showAIAdd: false }))} className="text-[9px] text-slate-500 font-bold uppercase px-3">Cancel</button>
-                <button onClick={handleAIAddProject} className="bg-blue-600 text-white text-[9px] font-black uppercase px-4 py-1.5 rounded">{isAiProcessing ? "..." : "Add"}</button>
+                <button onClick={() => setState(prev => ({ ...prev, showAIAdd: false }))} className="text-[11px] text-slate-500 font-bold uppercase px-3">Cancel</button>
+                <button onClick={handleAIAddProject} className="bg-blue-600 text-white text-[11px] font-black uppercase px-4 py-1.5 rounded">{isAiProcessing ? "..." : "Add"}</button>
              </div>
           </div>
         </div>
@@ -346,14 +340,14 @@ const App: React.FC = () => {
       {state.showSettings && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-xl h-[60vh] rounded-xl flex flex-col shadow-2xl overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-slate-800 flex justify-between items-center">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400">config.json</h3>
-              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="text-slate-600 hover:text-white">✕</button>
+            <div className="px-2 py-1 border-b border-slate-800 flex justify-between items-center">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">config.json</h3>
+              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="text-slate-600 hover:text-white text-[12px]">✕</button>
             </div>
-            <textarea value={settingsJson} onChange={(e) => setSettingsJson(e.target.value)} className="flex-grow bg-slate-950 p-4 mono text-[11px] text-slate-300 resize-none outline-none" spellCheck={false} />
-            <div className="p-3 border-t border-slate-800 flex justify-end gap-2 bg-slate-900/50">
-              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="px-4 text-[9px] font-black uppercase text-slate-500">Cancel</button>
-              <button onClick={handleSaveSettings} className="bg-blue-600 text-white text-[9px] font-black uppercase px-5 py-2 rounded">Save</button>
+            <textarea value={settingsJson} onChange={(e) => setSettingsJson(e.target.value)} className="flex-grow bg-slate-950 p-2 mono text-[12px] text-slate-300 resize-none outline-none" spellCheck={false} />
+            <div className="p-[2px] border-t border-slate-800 flex justify-end gap-1 bg-slate-900/50">
+              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="px-2 py-1 text-[10px] font-black uppercase text-slate-500">Cancel</button>
+              <button onClick={handleSaveSettings} className="bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded">Save</button>
             </div>
           </div>
         </div>
