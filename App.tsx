@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Project, GitStatus, AppState, AppSettings } from './types';
 import { INITIAL_PROJECTS } from './services/mockData';
 import { ProjectTab } from './components/ProjectTab';
@@ -15,6 +15,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const App: React.FC = () => {
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(SETTINGS_KEY);
     const settings = saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
@@ -30,6 +33,36 @@ const App: React.FC = () => {
   const [settingsJson, setSettingsJson] = useState(JSON.stringify(state.settings, null, 2));
   const [aiInput, setAiInput] = useState('');
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+  // Resize Handlers
+  const startResizingSidebar = useCallback(() => {
+    setIsResizingSidebar(true);
+  }, []);
+
+  const stopResizingSidebar = useCallback(() => {
+    setIsResizingSidebar(false);
+  }, []);
+
+  const resizeSidebar = useCallback((e: MouseEvent) => {
+    if (isResizingSidebar) {
+      const newWidth = Math.max(160, Math.min(450, e.clientX));
+      setSidebarWidth(newWidth);
+    }
+  }, [isResizingSidebar]);
+
+  useEffect(() => {
+    if (isResizingSidebar) {
+      window.addEventListener('mousemove', resizeSidebar);
+      window.addEventListener('mouseup', stopResizingSidebar);
+    } else {
+      window.removeEventListener('mousemove', resizeSidebar);
+      window.removeEventListener('mouseup', stopResizingSidebar);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resizeSidebar);
+      window.removeEventListener('mouseup', stopResizingSidebar);
+    };
+  }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
 
   // Sync projects with settings
   useEffect(() => {
@@ -142,15 +175,18 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden select-none relative">
-      <aside className="w-60 border-r border-slate-800/40 bg-slate-900/20 p-[2px] flex flex-col backdrop-blur-md">
+      <aside 
+        style={{ width: `${sidebarWidth}px` }}
+        className="border-r border-slate-800/40 bg-slate-900/20 p-[2px] flex flex-col backdrop-blur-md relative"
+      >
         <div className="flex items-center justify-between py-1.5 px-2 mb-1">
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="w-5 h-5 rounded bg-blue-600 flex-shrink-0 flex items-center justify-center">
               <Icons.GitBranch className="text-white w-3 h-3" />
             </div>
-            <h1 className="text-xs font-black tracking-widest text-white uppercase">GitLens</h1>
+            <h1 className="text-xs font-black tracking-widest text-white uppercase truncate">GitLens</h1>
           </div>
-          <div className="flex gap-[2px]">
+          <div className="flex gap-[2px] flex-shrink-0">
             <button 
               onClick={() => setState(prev => ({ ...prev, showAIAdd: true }))}
               title="AI Project Add"
@@ -198,6 +234,12 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Vertical Divider (Sidebar width resizer) */}
+        <div 
+          onMouseDown={startResizingSidebar}
+          className="absolute right-[-1px] top-0 bottom-0 w-[3px] bg-transparent hover:bg-blue-500/30 cursor-col-resize z-20 transition-colors"
+        />
       </aside>
 
       <main className="flex-grow flex flex-col p-[2px] overflow-hidden bg-slate-950/50">

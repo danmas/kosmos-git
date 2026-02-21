@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Project, FileChangeType, FileChange } from '../types';
 import { Icons } from '../constants';
 import { generateCommitMessage } from '../services/geminiService';
@@ -53,6 +53,41 @@ interface ProjectDetailsProps {
 export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommit, onRefresh, onBranchSwitch }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [commitPanelHeight, setCommitPanelHeight] = useState(120);
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Resize Handlers
+  const startResizing = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newHeight = containerRect.bottom - e.clientY;
+      // Constraint to avoid too small or too large
+      setCommitPanelHeight(Math.max(90, Math.min(containerRect.height * 0.7, newHeight)));
+    }
+  }, [isResizing]);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
 
   // Ensure current branch is first in the list
   const sortedBranches = useMemo(() => {
@@ -76,9 +111,9 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full overflow-hidden p-[2px] gap-[2px]">
-      {/* Mini Header - Now with Branch Switcher */}
-      <div className="flex items-center justify-between px-2 py-1 bg-slate-900/40 border border-slate-800/40 rounded-t-lg">
+    <div ref={containerRef} className="flex flex-col h-full max-h-full overflow-hidden p-[2px] gap-[2px]">
+      {/* Mini Header */}
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-900/40 border border-slate-800/40 rounded-t-lg flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <h2 className="text-xs font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
           
@@ -107,8 +142,8 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
         </button>
       </div>
 
-      {/* Main Area: Vertical Stack (Files Above, Commit Below) */}
-      <div className="flex flex-col flex-grow min-h-0 gap-[2px]">
+      {/* Vertical Stack: Files Above, Commit Below */}
+      <div className="flex flex-col flex-grow min-h-0 gap-0">
         
         {/* FILE LIST PANEL (ABOVE) */}
         <div className="flex-grow flex flex-col min-h-0 bg-slate-900/20 border border-slate-800/40 overflow-hidden">
@@ -152,26 +187,35 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
           </div>
         </div>
 
+        {/* Horizontal Divider (Commit panel height resizer) */}
+        <div 
+          onMouseDown={startResizing}
+          className="h-[2px] w-full bg-slate-800/50 hover:bg-blue-500/40 cursor-row-resize z-10 transition-colors"
+        />
+
         {/* COMMIT PANEL (BELOW) */}
-        <div className="flex-shrink-0 bg-slate-900/30 border border-slate-800/40 rounded-b-lg p-2 flex flex-col gap-2">
+        <div 
+          style={{ height: `${commitPanelHeight}px` }}
+          className="flex-shrink-0 bg-slate-900/30 border border-slate-800/40 rounded-b-lg p-1.5 flex flex-col gap-1.5 overflow-hidden"
+        >
           <div className="flex justify-between items-center px-0.5">
-            <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Prepare Commit</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Commit</span>
             <button 
               onClick={handleAISuggest}
               disabled={isGenerating || project.changes.length === 0}
               className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-500/80 hover:text-blue-400 disabled:opacity-20 transition-all"
             >
               <Icons.Sparkles className={`w-2.5 h-2.5 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? 'GEN...' : 'AI SUGGEST'}
+              {isGenerating ? 'GEN...' : 'AI'}
             </button>
           </div>
           
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1 flex-grow">
             <textarea
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="Commit summary..."
-              className="w-full bg-slate-950/40 border border-slate-800/60 rounded p-2 text-[11px] text-slate-300 placeholder-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/20 min-h-[125px] resize-none mono leading-relaxed"
+              placeholder="Summary..."
+              className="w-full flex-grow bg-slate-950/40 border border-slate-800/60 rounded p-1.5 text-[11px] text-slate-300 placeholder-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/20 resize-none mono leading-tight"
             />
             
             <div className="flex gap-[2px]">
@@ -181,21 +225,21 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
                   setCommitMessage('');
                 }}
                 disabled={project.changes.length === 0 || !commitMessage.trim()}
-                className="flex-grow bg-blue-600/80 hover:bg-blue-600 disabled:bg-slate-800/50 disabled:text-slate-700 text-white text-[9px] font-black uppercase tracking-widest py-2 rounded transition-all active:scale-[0.98] shadow-lg shadow-blue-500/5"
+                className="flex-grow bg-blue-600/80 hover:bg-blue-600 disabled:bg-slate-800/50 disabled:text-slate-700 text-white text-[9px] font-black uppercase tracking-widest py-1.5 rounded transition-all active:scale-[0.98] shadow-lg shadow-blue-500/5"
               >
                 Commit Staged
               </button>
               <button 
-                className="bg-slate-800/40 hover:bg-slate-800/60 text-slate-600 hover:text-slate-400 px-3 py-2 rounded text-[9px] font-black uppercase tracking-widest border border-slate-700/20 transition-all active:scale-[0.98]"
+                className="bg-slate-800/40 hover:bg-slate-800/60 text-slate-600 hover:text-slate-400 px-2 py-1.5 rounded text-[9px] font-black uppercase tracking-widest border border-slate-700/20 transition-all active:scale-[0.98]"
               >
-                Add All
+                +All
               </button>
             </div>
           </div>
 
-          {project.lastCommitMessage && (
-            <div className="pt-1.5 border-t border-slate-800/30 flex items-center justify-between text-[7px] text-slate-700 font-bold uppercase tracking-tighter px-0.5">
-              <span className="truncate italic max-w-[180px]">"{project.lastCommitMessage}"</span>
+          {project.lastCommitMessage && commitPanelHeight > 100 && (
+            <div className="pt-1 border-t border-slate-800/30 flex items-center justify-between text-[7px] text-slate-700 font-bold uppercase tracking-tighter px-0.5">
+              <span className="truncate italic max-w-[140px]">"{project.lastCommitMessage}"</span>
               <span className="opacity-50">{project.lastCommitDate}</span>
             </div>
           )}
