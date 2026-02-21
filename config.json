@@ -4,27 +4,32 @@
     {
       "id": "p1",
       "name": "kosmos-git",
-      "path": "c:/ERV/projects-ex/kosmos-git"
+      "path": "c:/ERV/projects-ex/kosmos-git",
+      "locked": true
     },
     {
       "id": "p2",
       "name": "kosmos-model",
-      "path": "c:/ERV/projects-ex/kosmos-model"
+      "path": "c:/ERV/projects-ex/kosmos-model",
+      "locked": false
     },
     {
       "id": "p3",
       "name": "kosmos-vector",
-      "path": "c:/ERV/projects-ex/kosmos-vector"
+      "path": "c:/ERV/projects-ex/kosmos-vector",
+      "locked": false
     },
     {
       "id": "p4",
       "name": "kosmos-vector-UI",
-      "path": "c:/ERV/projects-ex/kosmos-vector-UI"
+      "path": "c:/ERV/projects-ex/kosmos-vector-UI",
+      "locked": false
     },
     {
       "id": "p5",
       "name": "kosmos-backend",
-      "path": "c:/ERV/projects-ex/kosmos-backend"
+      "path": "c:/ERV/projects-ex/kosmos-backend",
+      "locked": false
     }
   ]
 }

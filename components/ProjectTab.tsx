@@ -32,6 +32,9 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
             <span className={`text-sm font-bold truncate ${isActive ? 'text-white' : 'text-slate-400'}`}>
               {project.name}
             </span>
+            {project.locked && (
+              <Icons.Lock className="w-3 h-3 text-amber-500/80 flex-shrink-0" />
+            )}
             <span className="text-xs text-slate-500 italic flex-shrink-0 truncate opacity-60">
               ({project.branch})
             </span>

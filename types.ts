@@ -29,6 +29,7 @@ export interface Project {
   changes: FileChange[];
   lastCommitMessage?: string;
   lastCommitDate?: string;
+  locked?: boolean; // If true, project is locked for commits and branch changes
 }
 
 export interface AppSettings {

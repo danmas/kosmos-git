@@ -9,7 +9,8 @@ import {
   unstageAllFiles,
   commitChanges,
   checkoutBranch,
-  createBranch
+  createBranch,
+  mergeDevToMain
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -19,6 +20,7 @@ interface ProjectConfig {
   id: string;
   name: string;
   path: string;
+  locked?: boolean;
 }
 
 interface AppConfig {
@@ -190,6 +192,11 @@ router.post('/:id/commit', async (req: Request<{ id: string }>, res: Response) =
       return res.status(404).json({ error: 'Project not found' });
     }
     
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to commit changes.' });
+    }
+    
     const { message } = req.body;
     if (!message || typeof message !== 'string') {
       logger.warn(LogCategory.API, 'Invalid commit request - no message', {
@@ -248,6 +255,11 @@ router.post('/:id/commit-all', async (req: Request<{ id: string }>, res: Respons
     if (!project) {
       logger.warn(LogCategory.API, 'Project not found', { projectId });
       return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to commit changes.' });
     }
     
     const { message } = req.body;
@@ -314,6 +326,11 @@ router.post('/:id/checkout', async (req: Request<{ id: string }>, res: Response)
       return res.status(404).json({ error: 'Project not found' });
     }
     
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to switch branches.' });
+    }
+    
     const { branch } = req.body;
     if (!branch || typeof branch !== 'string') {
       logger.warn(LogCategory.API, 'Invalid checkout request - no branch', {
@@ -358,6 +375,11 @@ router.post('/:id/create-branch', async (req: Request<{ id: string }>, res: Resp
       return res.status(404).json({ error: 'Project not found' });
     }
     
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to create branches.' });
+    }
+    
     const { branchName } = req.body;
     if (!branchName || typeof branchName !== 'string') {
       logger.warn(LogCategory.API, 'Invalid create-branch request - no branch name', {
@@ -381,6 +403,62 @@ router.post('/:id/create-branch', async (req: Request<{ id: string }>, res: Resp
       error: error.message
     });
     res.status(500).json({ error: 'Failed to create branch' });
+  }
+});
+
+// POST /api/projects/:id/merge-dev-to-main - Merge dev into main with checks
+router.post('/:id/merge-dev-to-main', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      logger.warn(LogCategory.API, 'Project not found', { projectId });
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to merge branches.' });
+    }
+    
+    logger.info(LogCategory.GIT, 'Starting dev->main merge', {
+      projectId,
+      projectName: project.name
+    });
+    
+    const result = await mergeDevToMain(project.path);
+    
+    if (result.success) {
+      logger.info(LogCategory.GIT, 'dev->main merge successful', {
+        projectId,
+        projectName: project.name
+      });
+      const status = await getProjectStatus(project);
+      res.json({ 
+        ...status, 
+        mergeSuccess: true, 
+        mergeReport: result.report 
+      });
+    } else {
+      logger.warn(LogCategory.GIT, 'dev->main merge failed', {
+        projectId,
+        projectName: project.name,
+        error: result.error
+      });
+      res.status(400).json({ 
+        error: result.error || 'Merge operation failed',
+        report: result.report
+      });
+    }
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error in dev->main merge', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({ 
+      error: 'Failed to merge dev->main',
+      details: error.message
+    });
   }
 });
 

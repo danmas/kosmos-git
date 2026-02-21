@@ -140,6 +140,34 @@ export async function refreshAllProjects(projectIds: string[]): Promise<Project[
   return Promise.all(projectIds.map(id => fetchProjectStatus(id)));
 }
 
+// Merge dev into main
+export async function mergeDevToMain(projectId: string): Promise<{
+  success: boolean;
+  report: string;
+  error?: string;
+}> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/merge-dev-to-main`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  const data = await response.json();
+  
+  if (!response.ok) {
+    return {
+      success: false,
+      report: data.report || '',
+      error: data.error || data.details || 'Failed to merge dev->main'
+    };
+  }
+  
+  return {
+    success: true,
+    report: data.mergeReport || 'Merge completed successfully',
+    error: undefined
+  };
+}
+
 // Save config.json to server
 export async function saveConfig(config: { pollInterval: number; projects: Array<{ id: string; name: string; path: string }> }): Promise<ProjectsResponse> {
   const response = await fetch(`${API_BASE}/projects/config`, {

@@ -16,6 +16,7 @@ import {
   stageAllFiles as apiStageAllFiles,
   unstageAllFiles as apiUnstageAllFiles,
   createBranch as apiCreateBranch,
+  mergeDevToMain as apiMergeDevToMain,
   saveConfig
 } from './services/apiService';
 
@@ -238,6 +239,42 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMergeDevToMain = async (projectId: string) => {
+    try {
+      setIsCommitting(true);
+      const result = await apiMergeDevToMain(projectId);
+      
+      if (result.success) {
+        // Refresh project status after successful merge
+        const updatedProject = await fetchProjectStatus(projectId);
+        setState(prev => ({
+          ...prev,
+          projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+        }));
+        showToast('success', 'dev->main merge completed successfully');
+        
+        // Show detailed report in console
+        console.log('Merge Report:\n', result.report);
+        
+        // Optional: show report in alert or modal
+        alert(`Merge Report:\n\n${result.report}`);
+      } else {
+        showToast('error', result.error || 'Merge failed');
+        // Show detailed report even on failure
+        if (result.report) {
+          console.log('Merge Report:\n', result.report);
+          alert(`Merge Report:\n\n${result.report}\n\nError: ${result.error}`);
+        }
+      }
+    } catch (err: any) {
+      console.error('Merge error:', err);
+      const errorMessage = err?.message || 'Failed to merge dev->main';
+      showToast('error', errorMessage);
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       const parsed = JSON.parse(settingsJson);
@@ -364,6 +401,7 @@ const App: React.FC = () => {
             onUnstageFile={handleUnstageFile}
             onStageAll={handleStageAll}
             onCreateBranch={handleCreateBranch}
+            onMergeDevToMain={handleMergeDevToMain}
             isCommitting={isCommitting}
           />
         ) : (

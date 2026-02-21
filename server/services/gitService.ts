@@ -6,6 +6,7 @@ interface ProjectConfig {
   id: string;
   name: string;
   path: string;
+  locked?: boolean;
 }
 
 function resolveProjectPath(configPath: string): string {
@@ -110,7 +111,8 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
       status: gitStatus,
       changes,
       lastCommitMessage: log?.latest?.message,
-      lastCommitDate: log?.latest?.date ? formatDate(log.latest.date) : undefined
+      lastCommitDate: log?.latest?.date ? formatDate(log.latest.date) : undefined,
+      locked: project.locked
     };
   } catch (error: any) {
     logger.error(LogCategory.GIT, `Error getting status for ${project.name}`, {
@@ -126,7 +128,8 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
       branches: [],
       status: GitStatus.CLEAN,
       changes: [],
-      lastCommitMessage: 'Unable to read repository'
+      lastCommitMessage: 'Unable to read repository',
+      locked: project.locked
     };
   }
 }
@@ -207,6 +210,122 @@ export async function createBranch(projectPath: string, branchName: string): Pro
     branchName
   });
   await git.checkoutLocalBranch(branchName);
+}
+
+export async function mergeDevToMain(projectPath: string): Promise<{
+  success: boolean;
+  report: string;
+  error?: string;
+}> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  const report: string[] = [];
+
+  try {
+    logger.info(LogCategory.GIT, 'Starting dev->main merge operation', { path: resolvedPath });
+    
+    // Step 1: Check current branch
+    const status = await git.status();
+    if (status.current !== 'dev') {
+      return {
+        success: false,
+        report: 'Error: Not on dev branch',
+        error: `Current branch is '${status.current}', but must be on 'dev' branch`
+      };
+    }
+    report.push('✓ Currently on dev branch');
+
+    // Step 2: Check dev is clean (all committed)
+    if (status.files.length > 0) {
+      return {
+        success: false,
+        report: report.join('\n') + '\n✗ Error: Uncommitted changes in dev branch',
+        error: 'Dev branch has uncommitted changes. Please commit or stash them first.'
+      };
+    }
+    report.push('✓ Dev branch is clean (all committed)');
+
+    // Step 3: Fetch latest (optional, to be safe)
+    await git.fetch();
+    report.push('✓ Fetched latest changes from remote');
+
+    // Step 4: Checkout main
+    await git.checkout('main');
+    report.push('✓ Switched to main branch');
+
+    // Step 5: Check main is clean
+    const mainStatus = await git.status();
+    if (mainStatus.files.length > 0) {
+      // Go back to dev
+      await git.checkout('dev');
+      return {
+        success: false,
+        report: report.join('\n') + '\n✗ Error: Uncommitted changes in main branch',
+        error: 'Main branch has uncommitted changes. Please clean it first.'
+      };
+    }
+    report.push('✓ Main branch is clean (all committed)');
+
+    // Step 6: Merge dev into main
+    try {
+      await git.merge(['dev']);
+      report.push('✓ Merged dev into main');
+    } catch (mergeError: any) {
+      // Go back to dev on merge error
+      await git.checkout('dev');
+      return {
+        success: false,
+        report: report.join('\n') + '\n✗ Merge failed',
+        error: `Merge conflict or error: ${mergeError.message}`
+      };
+    }
+
+    // Step 7: Push main
+    try {
+      await git.push('origin', 'main');
+      report.push('✓ Pushed main to remote');
+    } catch (pushError: any) {
+      // Stay on main but report push error
+      await git.checkout('dev');
+      return {
+        success: false,
+        report: report.join('\n') + '\n✗ Push failed',
+        error: `Failed to push main: ${pushError.message}`
+      };
+    }
+
+    // Step 8: Return to dev
+    await git.checkout('dev');
+    report.push('✓ Returned to dev branch');
+
+    report.push('\n✓ SUCCESS: dev merged into main and pushed!');
+    
+    logger.info(LogCategory.GIT, 'dev->main merge completed successfully', { path: resolvedPath });
+    
+    return {
+      success: true,
+      report: report.join('\n')
+    };
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'dev->main merge failed', {
+      path: resolvedPath,
+      error: error.message
+    });
+    
+    // Try to return to dev on any unexpected error
+    try {
+      await git.checkout('dev');
+      report.push('✓ Returned to dev branch after error');
+    } catch (checkoutError) {
+      report.push('✗ Failed to return to dev branch');
+    }
+    
+    return {
+      success: false,
+      report: report.join('\n'),
+      error: error.message
+    };
+  }
 }
 
 function formatDate(dateStr: string): string {

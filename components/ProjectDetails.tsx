@@ -8,9 +8,10 @@ interface FileItemProps {
   change: FileChange;
   onStage?: () => void;
   onUnstage?: () => void;
+  disabled?: boolean;
 }
 
-const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage }) => {
+const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, disabled }) => {
   const getTheme = () => {
     switch (change.type) {
       case FileChangeType.ADDED: return { text: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-500/20', icon: 'A' };
@@ -33,14 +34,16 @@ const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage }) => {
         {change.staged ? (
           <button
             onClick={onUnstage}
-            className="text-[9px] font-black text-emerald-500/80 bg-emerald-500/5 px-1.5 py-0.5 border border-emerald-500/20 rounded-sm tracking-tighter shadow-sm shadow-emerald-500/5 hover:bg-emerald-500/10 transition-all"
+            disabled={disabled}
+            className="text-[9px] font-black text-emerald-500/80 bg-emerald-500/5 px-1.5 py-0.5 border border-emerald-500/20 rounded-sm tracking-tighter shadow-sm shadow-emerald-500/5 hover:bg-emerald-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             STAGED
           </button>
         ) : (
           <button
             onClick={onStage}
-            className="text-[9px] font-black text-slate-500 bg-slate-500/5 px-1.5 py-0.5 border border-slate-500/20 rounded-sm tracking-tighter opacity-0 group-hover:opacity-100 hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
+            disabled={disabled}
+            className="text-[9px] font-black text-slate-500 bg-slate-500/5 px-1.5 py-0.5 border border-slate-500/20 rounded-sm tracking-tighter opacity-0 group-hover:opacity-100 hover:text-emerald-400 hover:border-emerald-500/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             STAGE
           </button>
@@ -60,6 +63,7 @@ interface ProjectDetailsProps {
   onStageAll: (projectId: string) => void;
   onCreateBranch: (projectId: string, branchName: string) => void;
   onCommitAll: (projectId: string, message: string) => void;
+  onMergeDevToMain: (projectId: string) => void;
   isCommitting?: boolean;
 }
 
@@ -73,6 +77,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onStageAll,
   onCreateBranch,
   onCommitAll,
+  onMergeDevToMain,
   isCommitting = false
 }) => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -161,10 +166,11 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
               <button 
                 key={b} 
                 onClick={() => onBranchSwitch(project.id, b)} 
+                disabled={project.locked}
                 className={`px-2 py-0.5 rounded border text-xs mono font-bold transition-all whitespace-nowrap ${
                   b === project.branch 
                     ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]' 
-                    : 'bg-slate-800/40 border-slate-700/50 text-slate-600 hover:text-slate-400 hover:border-slate-700'
+                    : 'bg-slate-800/40 border-slate-700/50 text-slate-600 hover:text-slate-400 hover:border-slate-700 disabled:cursor-not-allowed disabled:opacity-50'
                 }`}
               >
                 {b}
@@ -175,8 +181,9 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button 
             onClick={() => setShowCreateBranch(true)} 
-            className="p-1 rounded text-blue-500/80 hover:text-blue-400 transition-colors"
-            title="Create new branch"
+            disabled={project.locked}
+            className="p-1 rounded text-blue-500/80 hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title={project.locked ? "Project is locked" : "Create new branch"}
           >
             <span className="text-sm font-bold">+</span>
           </button>
@@ -201,6 +208,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                        key={`s-${i}`} 
                        change={c} 
                        onUnstage={() => onUnstageFile(project.id, c.path)}
+                       disabled={project.locked}
                      />
                    ))}
                 </div>
@@ -213,6 +221,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                        key={`u-${i}`} 
                        change={c} 
                        onStage={() => onStageFile(project.id, c.path)}
+                       disabled={project.locked}
                      />
                    ))}
                 </div>
@@ -233,21 +242,29 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       {/* Commit Panel */}
       <div style={{ height: `${commitPanelHeight}px` }} className="flex-shrink-0 bg-slate-900/30 border border-slate-800/40 rounded-b-lg p-2 flex flex-col gap-2 overflow-hidden backdrop-blur-sm">
         <div className="flex justify-between items-center px-0.5">
-          <span className="text-[10px] font-black uppercase text-slate-600 tracking-[0.2em]">Commit Message</span>
-          <button onClick={handleAISuggest} disabled={isGenerating || project.changes.length === 0} className="flex items-center gap-1.5 text-[10px] font-black text-blue-500/80 uppercase hover:text-blue-400 disabled:opacity-20 transition-all">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase text-slate-600 tracking-[0.2em]">Commit Message</span>
+            {project.locked && (
+              <span className="flex items-center gap-1 text-[9px] font-black text-amber-500/80 uppercase tracking-wider">
+                <Icons.Lock className="w-3 h-3" /> LOCKED
+              </span>
+            )}
+          </div>
+          <button onClick={handleAISuggest} disabled={isGenerating || project.changes.length === 0 || project.locked} className="flex items-center gap-1.5 text-[10px] font-black text-blue-500/80 uppercase hover:text-blue-400 disabled:opacity-20 transition-all">
             <Icons.Sparkles className={`w-2.5 h-2.5 ${isGenerating ? 'animate-spin' : ''}`} /> {isGenerating ? 'ANALYZING...' : 'AI SUGGEST'}
           </button>
         </div>
         <textarea 
           value={commitMessage} 
           onChange={(e) => setCommitMessage(e.target.value)} 
-          placeholder="What's changed in this commit?..." 
-          className="w-full flex-grow bg-slate-950/60 border border-slate-800/60 rounded p-2 text-sm text-slate-300 outline-none focus:ring-1 focus:ring-blue-500/30 resize-none mono leading-relaxed placeholder-slate-800" 
+          placeholder={project.locked ? "Project is locked - unlock to commit" : "What's changed in this commit?..."} 
+          disabled={project.locked}
+          className="w-full flex-grow bg-slate-950/60 border border-slate-800/60 rounded p-2 text-sm text-slate-300 outline-none focus:ring-1 focus:ring-blue-500/30 resize-none mono leading-relaxed placeholder-slate-800 disabled:opacity-50" 
         />
         <div className="flex gap-1.5">
           <button 
             onClick={() => { onCommit(project.id, commitMessage); setCommitMessage(''); }} 
-            disabled={!commitMessage.trim() || isCommitting || stagedChanges.length === 0} 
+            disabled={!commitMessage.trim() || isCommitting || stagedChanges.length === 0 || project.locked} 
             className="flex-grow bg-blue-600/90 hover:bg-blue-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-widest py-2 rounded shadow-lg shadow-blue-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
             {isCommitting ? (
@@ -261,9 +278,9 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
           </button>
           <button 
             onClick={() => { onCommitAll(project.id, commitMessage); setCommitMessage(''); }} 
-            disabled={!commitMessage.trim() || isCommitting || project.changes.length === 0} 
+            disabled={!commitMessage.trim() || isCommitting || project.changes.length === 0 || project.locked} 
             className="bg-emerald-600/90 hover:bg-emerald-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-wider px-3 py-2 rounded shadow-lg shadow-emerald-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
-            title="Stage all files and commit (like git commit -a)"
+            title={project.locked ? "Project is locked" : "Stage all files and commit (like git commit -a)"}
           >
             {isCommitting ? (
               <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -272,9 +289,22 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
             )}
           </button>
           <button 
+            onClick={() => onMergeDevToMain(project.id)}
+            disabled={isCommitting || project.locked || project.branch !== 'dev'}
+            className="bg-purple-600/90 hover:bg-purple-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-wider px-3 py-2 rounded shadow-lg shadow-purple-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
+            title={project.locked ? "Project is locked" : project.branch !== 'dev' ? "Only available on dev branch" : "Merge dev into main and push"}
+          >
+            {isCommitting ? (
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            ) : (
+              <>dev→main</>
+            )}
+          </button>
+          <button 
             onClick={() => onStageAll(project.id)}
-            disabled={unstagedChanges.length === 0}
-            className="bg-slate-800/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 disabled:opacity-30 text-xs font-black uppercase px-3 py-2 rounded border border-slate-700/20 transition-all active:scale-[0.98]"
+            disabled={unstagedChanges.length === 0 || project.locked}
+            className="bg-slate-800/60 hover:bg-slate-800 text-slate-500 hover:text-slate-300 disabled:opacity-30 text-xs font-black uppercase px-3 py-2 rounded border border-slate-700/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed"
+            title={project.locked ? "Project is locked" : "Stage all files"}
           >
             + Stage All
           </button>
