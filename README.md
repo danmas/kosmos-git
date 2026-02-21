@@ -1,98 +1,95 @@
 # GitLens Dashboard
 
-Git репозиторий мониторинг дашборд на React + Express + simple-git.
+Git repository manager with status monitoring and branch management.
 
-## Запуск
+## Prerequisites
 
-**Требования:** Bun (https://bun.sh)
+- Node.js (v18 or higher)
+- Bun (recommended) or npm
 
-### 1. Установка зависимостей
+## Installation
 
 ```bash
+npm install
+# or
 bun install
 ```
 
-### 2. Настройка проектов
+## Configuration
 
-Отредактируй `config.json`:
+1. Copy the example config file:
+   ```bash
+   cp config.json.exemple config.json
+   ```
 
-```json
-{
-  "pollInterval": 60,
-  "projects": [
-    {
-      "id": "p1",
-      "name": "my-project",
-      "path": "C:/path/to/your/repo"
-    }
-  ]
-}
-```
+2. Edit `config.json` with your Git project paths:
+   ```json
+   {
+     "pollInterval": 60,
+     "projects": [
+       {
+         "id": "unique-id",
+         "name": "Project Name",
+         "path": "C:/full/path/to/repo"
+       }
+     ]
+   }
+   ```
 
-### 3. Gemini API (опционально)
+   **Note:** Use forward slashes (`/`) in paths, even on Windows.
 
-Для AI-генерации commit сообщений создай `.env`:
+## Running the Application
 
-```
-GEMINI_API_KEY=your_api_key_here
-```
+You need to run **two servers** simultaneously:
 
-Получить ключ: https://ai.google.dev
-
-### 4. Запуск
-
-**Терминал 1 — API сервер:**
+### Terminal 1 - Backend API Server (port 3006)
 ```bash
-bun run server/index.ts
+bun run dev:server
 ```
-→ http://localhost:3006
 
-**Терминал 2 — Frontend:**
+### Terminal 2 - Frontend Dev Server (port 3007)
 ```bash
 bun run dev
 ```
-→ http://localhost:3007
 
-## Архитектура
+The application will be available at `http://localhost:3007`
 
+## Logging System
+
+The application includes a comprehensive logging system that tracks all operations:
+
+- **Log Files Location:** `logs/` directory
+- **File Format:** `<category>-YYYY-MM-DD.log`
+- **Categories:** `server`, `api`, `config`, `git`, `project`
+- **API Endpoint:** `GET /api/logs` - List all log files
+- **Specific Log:** `GET /api/logs?category=server&date=2026-02-21`
+
+**Enable Debug Mode:**
+```bash
+# Linux/Mac
+DEBUG=true bun run dev:server
+
+# Windows PowerShell
+$env:DEBUG="true"; bun run dev:server
 ```
-kosmos-git/
-├── App.tsx                     # Главный компонент
-├── components/
-│   ├── ProjectTab.tsx          # Табы проектов в сайдбаре
-│   └── ProjectDetails.tsx      # Основной вид с файлами
-├── services/
-│   ├── apiService.ts           # API клиент (fetch)
-│   ├── geminiService.ts        # Gemini AI интеграция
-│   └── mockData.ts             # Демо данные
-├── server/
-│   ├── index.ts                # Express сервер (порт 3006)
-│   ├── routes/projects.ts      # API роуты
-│   └── services/gitService.ts  # simple-git обёртка
-├── config.json                 # Конфигурация проектов
-└── types.ts                    # TypeScript типы
+
+For detailed logging documentation, see [docs/LOGGING.md](./docs/LOGGING.md)
+
+## Build for Production
+
+```bash
+bun run build
+bun run start
 ```
 
-## API Endpoints
+**In production:**
+- Single Express server on port **3006**
+- Serves both API (`/api/*`) and static frontend (`/*` from `dist/`)
+- No separate Vite server needed
+- Frontend available at `http://localhost:3006`
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/projects` | Список проектов |
-| GET | `/api/projects/:id/status` | Статус репозитория |
-| POST | `/api/projects/:id/stage` | Stage файлов |
-| POST | `/api/projects/:id/unstage` | Unstage файлов |
-| POST | `/api/projects/:id/commit` | Создать коммит |
-| POST | `/api/projects/:id/checkout` | Переключить ветку |
-| POST | `/api/projects/:id/create-branch` | Создать ветку |
-| POST | `/api/projects/config` | Сохранить конфиг |
-
-## Функции
-
-- 📊 Мониторинг Git репозиториев
-- 🔄 Просмотр staged/unstaged изменений
-- 📝 Stage/unstage файлов
-- 💬 Коммиты с сообщениями
-- 🤖 AI-генерация commit сообщений (Gemini)
-- 🌿 Переключение веток
-- ➕ Создание веток
-- 📂 Несколько репозиториев одновременно
+**Alternative: PM2 (requires Bun in PATH)**
+```bash
+bun run build
+pm2 start ecosystem.config.cjs
+```

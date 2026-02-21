@@ -29,10 +29,13 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
         <Icons.Bulb className={`w-3 h-3 flex-shrink-0 ${getBulbGlow()}`} />
         <div className="text-left overflow-hidden">
           <div className="flex items-center gap-1">
-            <span className={`text-[11px] font-bold truncate ${isActive ? 'text-white' : 'text-slate-400'}`}>
+            <span className={`text-sm font-bold truncate ${isActive ? 'text-white' : 'text-slate-400'}`}>
               {project.name}
             </span>
-            <span className="text-[9px] text-slate-600 italic flex-shrink-0 truncate opacity-60">
+            {project.locked && (
+              <Icons.Lock className="w-3 h-3 text-amber-500/80 flex-shrink-0" />
+            )}
+            <span className="text-xs text-slate-500 italic flex-shrink-0 truncate opacity-60">
               ({project.branch})
             </span>
           </div>
@@ -40,7 +43,7 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
       </div>
       
       {project.changes.length > 0 && (
-        <span className="bg-rose-500/10 text-rose-500 text-[8px] font-black px-1 py-0.5 rounded-sm border border-rose-500/20 leading-none">
+        <span className="bg-rose-500/10 text-rose-500 text-[10px] font-black px-1 py-0.5 rounded-sm border border-rose-500/20 leading-none">
           {project.changes.length}
         </span>
       )}

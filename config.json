@@ -1,26 +1,41 @@
-
 {
-  "pollInterval": 60,
+  "pollInterval": 30,
   "projects": [
     {
       "id": "p1",
-      "name": "frontend-core",
-      "path": "~/projects/frontend-core"
+      "name": "kosmos-git",
+      "path": "c:/ERV/projects-ex/kosmos-git",
+      "locked": true
     },
     {
       "id": "p2",
-      "name": "backend-api",
-      "path": "~/projects/backend-api"
+      "name": "kosmos-model",
+      "path": "c:/ERV/projects-ex/kosmos-model",
+      "locked": false
+    },
+    {
+      "id": "p21",
+      "name": "kosmos-panel",
+      "path": "c:/ERV/projects-ex/kosmos-panel",
+      "locked": false
     },
     {
       "id": "p3",
-      "name": "shared-ui-lib",
-      "path": "~/work/ui-lib"
+      "name": "kosmos-vector",
+      "path": "c:/ERV/projects-ex/kosmos-vector",
+      "locked": false
     },
     {
       "id": "p4",
-      "name": "documentation-site",
-      "path": "~/projects/docs"
+      "name": "kosmos-vector-UI",
+      "path": "c:/ERV/projects-ex/kosmos-vector-UI",
+      "locked": false
+    },
+    {
+      "id": "p5",
+      "name": "kosmos-backend",
+      "path": "c:/ERV/projects-ex/kosmos-backend",
+      "locked": false
     }
   ]
 }
