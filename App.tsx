@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Project, GitStatus, AppState, AppSettings } from './types';
-import { INITIAL_PROJECTS } from './services/mockData';
 import { ProjectTab } from './components/ProjectTab';
 import { ProjectDetails } from './components/ProjectDetails';
 import { Icons } from './constants';
 import { parseProjectInput } from './services/geminiService';
+import * as api from './services/apiService';
 
 const SETTINGS_KEY = 'gitlens_settings_v1';
 
@@ -14,8 +14,8 @@ const App: React.FC = () => {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   const [state, setState] = useState<AppState>({
-    projects: INITIAL_PROJECTS,
-    activeProjectId: INITIAL_PROJECTS[0].id,
+    projects: [],
+    activeProjectId: '',
     settings: { pollInterval: 60, projects: [] },
     showSettings: false,
     showAIAdd: false
@@ -24,6 +24,24 @@ const App: React.FC = () => {
   const [settingsJson, setSettingsJson] = useState('');
   const [aiInput, setAiInput] = useState('');
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+  // Load projects from API on mount
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const data = await api.fetchProjects();
+        setState(prev => ({
+          ...prev,
+          projects: data.projects,
+          activeProjectId: data.projects[0]?.id || '',
+          settings: { ...prev.settings, pollInterval: data.pollInterval }
+        }));
+      } catch (error) {
+        console.error('Failed to load projects from API:', error);
+      }
+    };
+    loadProjects();
+  }, []);
 
   // Load configuration from config.json on mount
   useEffect(() => {
@@ -104,21 +122,22 @@ const App: React.FC = () => {
     };
   }, [isResizingSidebar, resizeSidebar, stopResizingSidebar]);
 
-  // Polling Simulation
+  // Polling - refresh projects from API
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setState(prev => ({
-        ...prev,
-        projects: prev.projects.map(p => {
-          if (p.status === GitStatus.CLEAN && Math.random() > 0.95) {
-            return { ...p, status: GitStatus.DIRTY };
-          }
-          return p;
-        })
-      }));
+    if (state.projects.length === 0) return;
+    
+    const intervalId = setInterval(async () => {
+      try {
+        const projectIds = state.projects.map(p => p.id);
+        const updatedProjects = await api.refreshAllProjects(projectIds);
+        setState(prev => ({ ...prev, projects: updatedProjects }));
+      } catch (error) {
+        console.error('Failed to refresh projects:', error);
+      }
     }, state.settings.pollInterval * 1000);
+    
     return () => clearInterval(intervalId);
-  }, [state.settings.pollInterval]);
+  }, [state.settings.pollInterval, state.projects.length]);
 
   const activeProject = state.projects.find(p => p.id === state.activeProjectId);
 
@@ -126,29 +145,94 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, activeProjectId: id }));
   };
 
-  const handleCommit = (projectId: string, message: string) => {
-    setState(prev => ({
-      ...prev,
-      projects: prev.projects.map(p => {
-        if (p.id === projectId) {
-          return {
-            ...p,
-            status: GitStatus.CLEAN,
-            changes: [],
-            lastCommitMessage: message,
-            lastCommitDate: 'Just now'
-          };
-        }
-        return p;
-      })
-    }));
+  const handleCommit = async (projectId: string, message: string) => {
+    try {
+      const updatedProject = await api.commitChanges(projectId, message);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Commit failed:', error);
+      alert('Failed to commit changes');
+    }
   };
 
-  const handleBranchSwitch = (projectId: string, branch: string) => {
-    setState(prev => ({
-      ...prev,
-      projects: prev.projects.map(p => p.id === projectId ? { ...p, branch } : p)
-    }));
+  const handleBranchSwitch = async (projectId: string, branch: string) => {
+    try {
+      const updatedProject = await api.checkoutBranch(projectId, branch);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Branch switch failed:', error);
+      alert('Failed to switch branch');
+    }
+  };
+
+  const handleRefresh = async (projectId: string) => {
+    try {
+      const updatedProject = await api.refreshProject(projectId);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    }
+  };
+
+  const handleStageFile = async (projectId: string, filePath: string) => {
+    try {
+      const updatedProject = await api.stageFiles(projectId, [filePath]);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Stage failed:', error);
+      alert('Failed to stage file');
+    }
+  };
+
+  const handleUnstageFile = async (projectId: string, filePath: string) => {
+    try {
+      const updatedProject = await api.unstageFiles(projectId, [filePath]);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Unstage failed:', error);
+      alert('Failed to unstage file');
+    }
+  };
+
+  const handleStageAll = async (projectId: string) => {
+    try {
+      const updatedProject = await api.stageAllFiles(projectId);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Stage all failed:', error);
+      alert('Failed to stage all files');
+    }
+  };
+
+  const handleCreateBranch = async (projectId: string, branchName: string) => {
+    try {
+      const updatedProject = await api.createBranch(projectId, branchName);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+    } catch (error) {
+      console.error('Create branch failed:', error);
+      alert('Failed to create branch');
+    }
   };
 
   const handleSaveSettings = () => {
@@ -230,8 +314,12 @@ const App: React.FC = () => {
           <ProjectDetails 
             project={activeProject} 
             onCommit={handleCommit}
-            onRefresh={() => {}}
+            onRefresh={handleRefresh}
             onBranchSwitch={handleBranchSwitch}
+            onStageFile={handleStageFile}
+            onUnstageFile={handleUnstageFile}
+            onStageAll={handleStageAll}
+            onCreateBranch={handleCreateBranch}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-800 opacity-20">
