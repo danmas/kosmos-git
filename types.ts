@@ -30,7 +30,14 @@ export interface Project {
   lastCommitDate?: string;
 }
 
+export interface AppSettings {
+  projects: Array<{ id: string; name: string; path: string }>;
+  pollInterval: number; // seconds
+}
+
 export interface AppState {
   projects: Project[];
   activeProjectId: string | null;
+  settings: AppSettings;
+  showSettings: boolean;
 }
