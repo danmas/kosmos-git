@@ -47,11 +47,18 @@ interface ProjectDetailsProps {
   project: Project;
   onCommit: (projectId: string, message: string) => void;
   onRefresh: (projectId: string) => void;
+  onBranchSwitch: (projectId: string, branch: string) => void;
 }
 
-export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommit, onRefresh }) => {
+export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommit, onRefresh, onBranchSwitch }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Ensure current branch is first in the list
+  const sortedBranches = useMemo(() => {
+    const others = project.branches.filter(b => b !== project.branch);
+    return [project.branch, ...others];
+  }, [project.branch, project.branches]);
 
   const { stagedChanges, unstagedChanges } = useMemo(() => {
     return {
@@ -70,18 +77,31 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
 
   return (
     <div className="flex flex-col h-full max-h-full overflow-hidden p-[2px] gap-[2px]">
-      {/* Mini Header - Extremely Compact */}
-      <div className="flex items-center justify-between px-2 py-0.5 bg-slate-900/40 border border-slate-800/40 rounded-t-lg">
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-xs font-black text-white uppercase tracking-wider truncate">{project.name}</h2>
-          <div className="flex items-center gap-1 px-1 bg-slate-800/80 rounded border border-slate-700/50 text-[9px] text-slate-500 mono font-bold">
-            <Icons.GitBranch className="w-2 h-2" />
-            {project.branch}
+      {/* Mini Header - Now with Branch Switcher */}
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-900/40 border border-slate-800/40 rounded-t-lg">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+          <h2 className="text-xs font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
+          
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade-right">
+            {sortedBranches.map(b => (
+              <button
+                key={b}
+                onClick={() => onBranchSwitch(project.id, b)}
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] mono font-bold transition-all whitespace-nowrap ${
+                  b === project.branch 
+                    ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.15)]' 
+                    : 'bg-slate-800/40 border-slate-700/50 text-slate-600 hover:text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                <Icons.GitBranch className={`w-2 h-2 ${b === project.branch ? 'opacity-100' : 'opacity-40'}`} />
+                {b}
+              </button>
+            ))}
           </div>
         </div>
         <button 
           onClick={() => onRefresh(project.id)}
-          className="p-1 rounded hover:bg-slate-800 transition-colors text-slate-600 hover:text-slate-300"
+          className="p-1 rounded hover:bg-slate-800 transition-colors text-slate-600 hover:text-slate-300 ml-2"
         >
           <Icons.Refresh className="w-3 h-3" />
         </button>
@@ -132,7 +152,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, onCommi
           </div>
         </div>
 
-        {/* COMMIT PANEL (BELOW) - Height increased significantly */}
+        {/* COMMIT PANEL (BELOW) */}
         <div className="flex-shrink-0 bg-slate-900/30 border border-slate-800/40 rounded-b-lg p-2 flex flex-col gap-2">
           <div className="flex justify-between items-center px-0.5">
             <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Prepare Commit</span>

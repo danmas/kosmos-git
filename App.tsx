@@ -5,6 +5,7 @@ import { INITIAL_PROJECTS } from './services/mockData';
 import { ProjectTab } from './components/ProjectTab';
 import { ProjectDetails } from './components/ProjectDetails';
 import { Icons } from './constants';
+import { parseProjectInput } from './services/geminiService';
 
 const SETTINGS_KEY = 'gitlens_settings_v1';
 
@@ -21,13 +22,16 @@ const App: React.FC = () => {
       projects: INITIAL_PROJECTS,
       activeProjectId: INITIAL_PROJECTS[0].id,
       settings,
-      showSettings: false
+      showSettings: false,
+      showAIAdd: false
     };
   });
 
   const [settingsJson, setSettingsJson] = useState(JSON.stringify(state.settings, null, 2));
+  const [aiInput, setAiInput] = useState('');
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
 
-  // Sync projects with settings on mount and whenever settings are updated
+  // Sync projects with settings
   useEffect(() => {
     setState(prev => {
       const newProjects = prev.settings.projects.map(sp => {
@@ -40,6 +44,7 @@ const App: React.FC = () => {
           name: sp.name,
           path: sp.path,
           branch: 'main',
+          branches: ['main', 'develop'],
           status: GitStatus.CLEAN,
           changes: []
         };
@@ -48,7 +53,7 @@ const App: React.FC = () => {
     });
   }, [state.settings]);
 
-  // Automatic status polling
+  // Status polling
   useEffect(() => {
     const intervalId = setInterval(() => {
       setState(prev => ({
@@ -89,8 +94,11 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleRefresh = (projectId: string) => {
-    console.log(`Refreshing ${projectId}...`);
+  const handleBranchSwitch = (projectId: string, branch: string) => {
+    setState(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => p.id === projectId ? { ...p, branch } : p)
+    }));
   };
 
   const handleSaveSettings = () => {
@@ -99,13 +107,41 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, settings: parsed, showSettings: false }));
       localStorage.setItem(SETTINGS_KEY, settingsJson);
     } catch (e) {
-      alert("Invalid JSON configuration. Please check your syntax.");
+      alert("Invalid JSON configuration.");
     }
   };
 
+  const handleAIAddProject = async () => {
+    if (!aiInput.trim()) return;
+    setIsAiProcessing(true);
+    const parsed = await parseProjectInput(aiInput);
+    if (parsed) {
+      const newProjectSettings = {
+        id: `p-${Date.now()}`,
+        name: parsed.name,
+        path: parsed.path
+      };
+      const updatedSettings = {
+        ...state.settings,
+        projects: [...state.settings.projects, newProjectSettings]
+      };
+      setState(prev => ({ 
+        ...prev, 
+        settings: updatedSettings, 
+        showAIAdd: false,
+        activeProjectId: newProjectSettings.id
+      }));
+      setSettingsJson(JSON.stringify(updatedSettings, null, 2));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updatedSettings));
+      setAiInput('');
+    } else {
+      alert("Could not parse project info. Try being more specific with path and name.");
+    }
+    setIsAiProcessing(false);
+  };
+
   return (
-    <div className="flex h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden select-none">
-      {/* Sidebar - Dense and compact */}
+    <div className="flex h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden select-none relative">
       <aside className="w-60 border-r border-slate-800/40 bg-slate-900/20 p-[2px] flex flex-col backdrop-blur-md">
         <div className="flex items-center justify-between py-1.5 px-2 mb-1">
           <div className="flex items-center gap-1.5">
@@ -115,6 +151,13 @@ const App: React.FC = () => {
             <h1 className="text-xs font-black tracking-widest text-white uppercase">GitLens</h1>
           </div>
           <div className="flex gap-[2px]">
+            <button 
+              onClick={() => setState(prev => ({ ...prev, showAIAdd: true }))}
+              title="AI Project Add"
+              className="p-1 rounded hover:bg-slate-800 transition-colors text-blue-500/80 hover:text-blue-400"
+            >
+              <Icons.Sparkles className="w-3.5 h-3.5" />
+            </button>
             <button 
               onClick={() => setState(prev => ({ ...prev, showSettings: true }))}
               className="p-1 rounded hover:bg-slate-800 transition-colors text-slate-500 hover:text-slate-300"
@@ -157,13 +200,13 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-grow flex flex-col p-[2px] overflow-hidden bg-slate-950/50">
         {activeProject ? (
           <ProjectDetails 
             project={activeProject} 
             onCommit={handleCommit}
-            onRefresh={handleRefresh}
+            onRefresh={() => {}}
+            onBranchSwitch={handleBranchSwitch}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-800 opacity-20">
@@ -172,6 +215,39 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* AI Add Modal */}
+      {state.showAIAdd && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm animate-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl overflow-hidden p-4 flex flex-col gap-3">
+             <div className="flex items-center justify-between">
+               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white flex items-center gap-2">
+                 <Icons.Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                 AI Quick Add
+               </h3>
+               <button onClick={() => setState(prev => ({ ...prev, showAIAdd: false }))} className="text-slate-600 hover:text-white">✕</button>
+             </div>
+             <p className="text-[10px] text-slate-500 italic">Example: "Add my dashboard project located at ~/dev/dashboard"</p>
+             <input 
+               autoFocus
+               value={aiInput}
+               onChange={(e) => setAiInput(e.target.value)}
+               onKeyDown={(e) => e.key === 'Enter' && handleAIAddProject()}
+               placeholder="Describe project or paste path..."
+               className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+             />
+             <div className="flex justify-end gap-2">
+                <button 
+                  disabled={isAiProcessing}
+                  onClick={handleAIAddProject}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded transition-all shadow-lg shadow-blue-500/10"
+                >
+                  {isAiProcessing ? "Analyzing..." : "Add to Workspace"}
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {state.showSettings && (
@@ -182,37 +258,19 @@ const App: React.FC = () => {
                 <Icons.Settings className="w-3.5 h-3.5 text-blue-500" />
                 Settings.json
               </h3>
-              <button 
-                onClick={() => setState(prev => ({ ...prev, showSettings: false }))}
-                className="text-slate-600 hover:text-white transition-colors p-1"
-              >
-                ✕
-              </button>
+              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="text-slate-600 hover:text-white p-1">✕</button>
             </div>
-            <div className="flex-grow p-4 flex flex-col min-h-0 bg-slate-950/20">
-              <div className="mb-2 text-[9px] font-medium text-slate-500 italic">
-                Manage your projects and polling configuration directly in JSON format.
-              </div>
+            <div className="flex-grow p-4 flex flex-col min-h-0">
               <textarea 
                 value={settingsJson}
                 onChange={(e) => setSettingsJson(e.target.value)}
-                className="flex-grow w-full bg-slate-950 border border-slate-800 rounded-lg p-3 mono text-[11px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none custom-scrollbar leading-relaxed"
+                className="flex-grow w-full bg-slate-950 border border-slate-800 rounded-lg p-3 mono text-[11px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none custom-scrollbar"
                 spellCheck={false}
               />
             </div>
             <div className="p-3 border-t border-slate-800 flex justify-end gap-2 bg-slate-900/50">
-              <button 
-                onClick={() => setState(prev => ({ ...prev, showSettings: false }))}
-                className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleSaveSettings}
-                className="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all active:scale-95 shadow-lg shadow-blue-500/10"
-              >
-                Save Config
-              </button>
+              <button onClick={() => setState(prev => ({ ...prev, showSettings: false }))} className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white">Cancel</button>
+              <button onClick={handleSaveSettings} className="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-lg shadow-blue-500/10">Save Config</button>
             </div>
           </div>
         </div>

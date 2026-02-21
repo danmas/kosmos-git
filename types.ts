@@ -24,6 +24,7 @@ export interface Project {
   name: string;
   path: string;
   branch: string;
+  branches: string[]; // List of available branches
   status: GitStatus;
   changes: FileChange[];
   lastCommitMessage?: string;
@@ -40,4 +41,5 @@ export interface AppState {
   activeProjectId: string | null;
   settings: AppSettings;
   showSettings: boolean;
+  showAIAdd: boolean;
 }
