@@ -177,6 +177,35 @@ export async function mergeDevToMain(projectId: string): Promise<{
   };
 }
 
+// Generic branch merge
+export async function mergeBranches(projectId: string, fromBranch: string, toBranch: string): Promise<{
+  success: boolean;
+  report: string;
+  error?: string;
+}> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/merge-branches`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromBranch, toBranch })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      success: false,
+      report: data.report || '',
+      error: data.error || data.details || 'Failed to merge branches'
+    };
+  }
+
+  return {
+    success: true,
+    report: data.mergeReport || 'Merge completed successfully',
+    error: undefined
+  };
+}
+
 // Save config.json to server
 export async function saveConfig(config: { pollInterval: number; projects: Array<{ id: string; name: string; path: string }> }): Promise<ProjectsResponse> {
   const response = await fetch(`${API_BASE}/projects/config`, {

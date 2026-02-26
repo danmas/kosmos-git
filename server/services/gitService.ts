@@ -93,7 +93,7 @@ export async function getProjectStatus(project: ProjectConfig): Promise<Project>
       projectId: project.id,
       path: projectPath
     });
-    
+
     const [status, branchSummary, log] = await Promise.all([
       git.status(),
       git.branchLocal(),
@@ -171,21 +171,21 @@ export async function unstageAllFiles(projectPath: string): Promise<void> {
 export async function commitChanges(projectPath: string, message: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
-  
+
   // Check if there are staged files before committing
   const status = await git.status();
   if (status.staged.length === 0) {
     throw new Error('Nothing to commit. Stage some files first.');
   }
-  
+
   logger.debug(LogCategory.GIT, 'Committing changes', {
     path: resolvedPath,
     message: message.substring(0, 50),
     stagedFiles: status.staged.length
   });
-  
+
   const result = await git.commit(message);
-  
+
   // Verify commit actually happened
   if (!result.commit) {
     throw new Error('Commit failed - no changes were committed');
@@ -223,7 +223,7 @@ export async function mergeDevToMain(projectPath: string): Promise<{
 
   try {
     logger.info(LogCategory.GIT, 'Starting dev->main merge operation', { path: resolvedPath });
-    
+
     // Step 1: Check current branch
     const status = await git.status();
     if (status.current !== 'dev') {
@@ -299,9 +299,9 @@ export async function mergeDevToMain(projectPath: string): Promise<{
     report.push('✓ Returned to dev branch');
 
     report.push('\n✓ SUCCESS: dev merged into main and pushed!');
-    
+
     logger.info(LogCategory.GIT, 'dev->main merge completed successfully', { path: resolvedPath });
-    
+
     return {
       success: true,
       report: report.join('\n')
@@ -311,7 +311,7 @@ export async function mergeDevToMain(projectPath: string): Promise<{
       path: resolvedPath,
       error: error.message
     });
-    
+
     // Try to return to dev on any unexpected error
     try {
       await git.checkout('dev');
@@ -319,7 +319,78 @@ export async function mergeDevToMain(projectPath: string): Promise<{
     } catch (checkoutError) {
       report.push('✗ Failed to return to dev branch');
     }
-    
+
+    return {
+      success: false,
+      report: report.join('\n'),
+      error: error.message
+    };
+  }
+}
+
+export async function mergeBranches(projectPath: string, fromBranch: string, toBranch: string): Promise<{
+  success: boolean;
+  report: string;
+  error?: string;
+}> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  const report: string[] = [];
+
+  try {
+    logger.info(LogCategory.GIT, `Starting generic merge: ${fromBranch} -> ${toBranch}`, { path: resolvedPath });
+
+    // Get current branch to return later
+    const status = await git.status();
+    const originalBranch = status.current;
+
+    // Step 1: Checkout toBranch
+    await git.checkout(toBranch);
+    report.push(`✓ Switched to target branch: ${toBranch}`);
+
+    // Step 2: Merge fromBranch
+    try {
+      await git.merge([fromBranch]);
+      report.push(`✓ Merged ${fromBranch} into ${toBranch}`);
+    } catch (mergeError: any) {
+      // Attempt to abort the merge on conflict
+      try {
+        await git.merge(['--abort']);
+        report.push('✓ Merge aborted due to conflict');
+      } catch (abortError) {
+        report.push('✗ Failed to abort merge cleanly');
+      }
+
+      // Return to original branch if possible
+      if (originalBranch && originalBranch !== toBranch) {
+        await git.checkout(originalBranch);
+        report.push(`✓ Returned to original branch: ${originalBranch}`);
+      }
+      return {
+        success: false,
+        report: report.join('\n') + `\n✗ Merge failed: ${mergeError.message}`,
+        error: `Merge conflict or error during merge of '${fromBranch}' into '${toBranch}'`
+      };
+    }
+
+    // Still on toBranch, return to original
+    if (originalBranch && originalBranch !== toBranch) {
+      await git.checkout(originalBranch);
+      report.push(`✓ Returned to original branch: ${originalBranch}`);
+    }
+
+    report.push(`\n✓ SUCCESS: ${fromBranch} merged into ${toBranch}!`);
+    return {
+      success: true,
+      report: report.join('\n')
+    };
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Generic merge failed', {
+      path: resolvedPath,
+      fromBranch,
+      toBranch,
+      error: error.message
+    });
     return {
       success: false,
       report: report.join('\n'),
@@ -340,6 +411,6 @@ function formatDate(dateStr: string): string {
   if (diffMins < 60) return `${diffMins} minutes ago`;
   if (diffHours < 24) return `${diffHours} hours ago`;
   if (diffDays < 7) return `${diffDays} days ago`;
-  
+
   return date.toLocaleDateString();
 }
