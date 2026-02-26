@@ -19,11 +19,10 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between p-1.5 mb-[2px] rounded transition-all duration-75 border ${
-        isActive 
-          ? 'bg-slate-800/80 border-blue-500/20 shadow-sm' 
+      className={`w-full flex items-center justify-between p-1.5 mb-[2px] rounded transition-all duration-75 border ${isActive
+          ? 'bg-slate-800/80 border-blue-500/20 shadow-sm'
           : 'bg-transparent border-transparent hover:bg-slate-800/30 hover:border-slate-800/50'
-      }`}
+        }`}
     >
       <div className="flex items-center gap-1.5 overflow-hidden">
         <Icons.Bulb className={`w-3 h-3 flex-shrink-0 ${getBulbGlow()}`} />
@@ -35,13 +34,13 @@ export const ProjectTab: React.FC<ProjectTabProps> = ({ project, isActive, onCli
             {project.locked && (
               <Icons.Lock className="w-3 h-3 text-amber-500/80 flex-shrink-0" />
             )}
-            <span className="text-xs text-slate-500 italic flex-shrink-0 truncate opacity-60">
+            <span className="text-xs text-slate-400 italic flex-shrink-0 truncate">
               ({project.branch})
             </span>
           </div>
         </div>
       </div>
-      
+
       {project.changes.length > 0 && (
         <span className="bg-rose-500/10 text-rose-500 text-[10px] font-black px-1 py-0.5 rounded-sm border border-rose-500/20 leading-none">
           {project.changes.length}

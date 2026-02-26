@@ -2,8 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'kosmos-git',
-      script: 'server/index.ts',
-      interpreter: 'C:\\Users\\roman\\.bun\\bin\\bun.exe',
+      script: 'C:\\Users\\roman\\.bun\\bin\\bun.exe',
+      args: 'server/index.ts',
+      cwd: 'C:\\ERV\\projects-ex\\kosmos-git',
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',

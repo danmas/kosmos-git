@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bunx --bun vite",
-    "dev:server": "bun --watch server/index.ts",
+    "dev": "concurrently -n \"API,VITE\" -c \"blue,green\" \"bun run server\" \"bun run vite\"",
+    "vite": "bunx --bun vite",
+    "server": "bun --watch server/index.ts",
     "start": "cross-env NODE_ENV=production bun server/index.ts",
     "build": "vite build",
     "preview": "vite preview"
@@ -23,6 +24,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

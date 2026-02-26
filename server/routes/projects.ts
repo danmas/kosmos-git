@@ -10,7 +10,8 @@ import {
   commitChanges,
   checkoutBranch,
   createBranch,
-  mergeDevToMain
+  mergeDevToMain,
+  mergeBranches
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -457,6 +458,73 @@ router.post('/:id/merge-dev-to-main', async (req: Request<{ id: string }>, res: 
     });
     res.status(500).json({
       error: 'Failed to merge dev->main',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/projects/:id/merge-branches - Generic branch merge
+router.post('/:id/merge-branches', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      logger.warn(LogCategory.API, 'Project not found', { projectId });
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to merge branches.' });
+    }
+
+    const { fromBranch, toBranch } = req.body;
+    if (!fromBranch || !toBranch) {
+      return res.status(400).json({ error: 'Source and target branches required' });
+    }
+
+    logger.info(LogCategory.GIT, 'Starting generic merge', {
+      projectId,
+      projectName: project.name,
+      fromBranch,
+      toBranch
+    });
+
+    const result = await mergeBranches(project.path, fromBranch, toBranch);
+
+    if (result.success) {
+      logger.info(LogCategory.GIT, 'Merge successful', {
+        projectId,
+        projectName: project.name,
+        fromBranch,
+        toBranch
+      });
+      const status = await getProjectStatus(project);
+      res.json({
+        ...status,
+        mergeSuccess: true,
+        mergeReport: result.report
+      });
+    } else {
+      logger.warn(LogCategory.GIT, 'Merge failed', {
+        projectId,
+        projectName: project.name,
+        fromBranch,
+        toBranch,
+        error: result.error
+      });
+      res.status(400).json({
+        error: result.error || 'Merge operation failed',
+        report: result.report
+      });
+    }
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error in generic merge', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({
+      error: 'Failed to merge branches',
       details: error.message
     });
   }

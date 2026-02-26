@@ -2,6 +2,8 @@
 
 Git repository manager with status monitoring and branch management.
 
+![screen shot](./assets/image_20260224101349.png)
+
 ## Prerequisites
 
 - Node.js (v18 or higher)
