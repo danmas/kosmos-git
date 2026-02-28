@@ -414,3 +414,64 @@ function formatDate(dateStr: string): string {
 
   return date.toLocaleDateString();
 }
+
+import { join } from 'path';
+import { readFileSync, existsSync, statSync } from 'fs';
+
+export async function getFileContent(projectPath: string, filePath: string): Promise<string> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const fullPath = join(resolvedPath, filePath);
+
+  try {
+    if (!existsSync(fullPath)) {
+      return '(File not found or deleted)';
+    }
+    const stat = statSync(fullPath);
+    if (stat.size > 2 * 1024 * 1024) return '(File is too large to display)';
+
+    // Read up to 8KB to check if binary
+    const fd = require('fs').openSync(fullPath, 'r');
+    const buffer = Buffer.alloc(8192);
+    const bytesRead = require('fs').readSync(fd, buffer, 0, 8192, 0);
+    require('fs').closeSync(fd);
+
+    // Check for null bytes which usually indicates a binary file
+    if (buffer.subarray(0, bytesRead).includes(0)) {
+      return '(Binary file not displayed)';
+    }
+
+    return readFileSync(fullPath, 'utf8');
+  } catch (err: any) {
+    return `(Error reading file: ${err.message})`;
+  }
+}
+
+export async function getFileDiff(projectPath: string, filePath: string, staged: boolean = false): Promise<string> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  try {
+    let diff = '';
+
+    const status = await git.status();
+    const isUntracked = status.not_added.includes(filePath);
+
+    if (isUntracked) {
+      const content = await getFileContent(projectPath, filePath);
+      if (content.startsWith('(')) return content; // Return error or binary info
+      const lines = content.split('\n');
+      diff = `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n${lines.map(l => '+' + l).join('\n')}`;
+    } else {
+      if (staged) {
+        diff = await git.diff(['--staged', '--', filePath]);
+      } else {
+        diff = await git.diff(['--', filePath]);
+        if (!diff) {
+          diff = await git.diff(['HEAD', '--', filePath]);
+        }
+      }
+    }
+    return diff || 'No differences found.';
+  } catch (err: any) {
+    throw new Error('Could not get diff: ' + err.message);
+  }
+}

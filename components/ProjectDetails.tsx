@@ -3,15 +3,18 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Project, FileChangeType, FileChange } from '../types';
 import { Icons } from '../constants';
 import { generateCommitMessage } from '../services/geminiService';
+import { getFileContent, getFileDiff } from '../services/apiService';
 
 interface FileItemProps {
   change: FileChange;
   onStage?: () => void;
   onUnstage?: () => void;
+  onView?: () => void;
+  onDiff?: () => void;
   disabled?: boolean;
 }
 
-const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, disabled }) => {
+const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, onView, onDiff, disabled }) => {
   const getTheme = () => {
     switch (change.type) {
       case FileChangeType.ADDED: return { text: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-500/20', icon: 'A' };
@@ -31,6 +34,20 @@ const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, disable
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <button
+          onClick={onView}
+          className="text-[9px] font-black text-slate-400 hover:text-white px-1 py-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all hidden sm:block"
+          title="View file content"
+        >
+          VIEW
+        </button>
+        <button
+          onClick={onDiff}
+          className="text-[9px] font-black text-slate-400 hover:text-white px-1 py-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all hidden sm:block"
+          title="View diff"
+        >
+          DIFF
+        </button>
         {change.staged ? (
           <button
             onClick={onUnstage}
@@ -91,7 +108,31 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [newBranchName, setNewBranchName] = useState('');
   const [mergeFrom, setMergeFrom] = useState('');
   const [mergeTo, setMergeTo] = useState('');
+  const [selectedFile, setSelectedFile] = useState<{ path: string, type: 'content' | 'diff', staged: boolean } | null>(null);
+  const [fileDetails, setFileDetails] = useState('');
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setFileDetails('');
+      return;
+    }
+    setLoadingDetails(true);
+    setFileDetails('Loading...');
+
+    if (selectedFile.type === 'content') {
+      getFileContent(project.id, selectedFile.path)
+        .then(content => setFileDetails(content))
+        .catch(err => setFileDetails('Error: ' + err.message))
+        .finally(() => setLoadingDetails(false));
+    } else {
+      getFileDiff(project.id, selectedFile.path, selectedFile.staged)
+        .then(diff => setFileDetails(diff))
+        .catch(err => setFileDetails('Error: ' + err.message))
+        .finally(() => setLoadingDetails(false));
+    }
+  }, [selectedFile, project.id]);
 
   const startResizing = useCallback(() => setIsResizing(true), []);
   const stopResizing = useCallback(() => setIsResizing(false), []);
@@ -229,6 +270,8 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                       key={`s-${i}`}
                       change={c}
                       onUnstage={() => onUnstageFile(project.id, c.path)}
+                      onView={() => setSelectedFile({ path: c.path, type: 'content', staged: true })}
+                      onDiff={() => setSelectedFile({ path: c.path, type: 'diff', staged: true })}
                       disabled={project.locked}
                     />
                   ))}
@@ -242,6 +285,8 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                       key={`u-${i}`}
                       change={c}
                       onStage={() => onStageFile(project.id, c.path)}
+                      onView={() => setSelectedFile({ path: c.path, type: 'content', staged: false })}
+                      onDiff={() => setSelectedFile({ path: c.path, type: 'diff', staged: false })}
                       disabled={project.locked}
                     />
                   ))}
@@ -405,6 +450,51 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                 className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:opacity-30 text-white text-[10px] font-black uppercase px-6 py-2 rounded transition-all active:scale-95 shadow-lg shadow-indigo-600/10"
               >
                 {isCommitting ? "Merging..." : "Confirm Merge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Details (Content/Diff) Modal */}
+      {selectedFile && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl h-[85vh] rounded-xl flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50">
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                  {selectedFile.type === 'content' ? 'File Content' : 'File Diff'} {selectedFile.staged ? '(Staged)' : ''}
+                </span>
+                <span className="text-sm font-bold text-slate-200 mono truncate">{selectedFile.path}</span>
+              </div>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="p-1 rounded text-slate-500 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Close"
+              >
+                <Icons.Close className="w-5 h-5" />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+            <div className="flex-grow p-4 overflow-hidden flex flex-col min-h-0 bg-slate-950/50">
+              {loadingDetails ? (
+                <div className="flex items-center justify-center h-full">
+                  <span className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></span>
+                </div>
+              ) : (
+                <textarea
+                  readOnly
+                  value={fileDetails}
+                  className="w-full h-full bg-slate-950 border border-slate-800 rounded p-4 text-sm text-slate-300 outline-none resize-none mono leading-relaxed custom-scrollbar whitespace-pre"
+                />
+              )}
+            </div>
+            <div className="flex justify-end p-3 border-t border-slate-800 bg-slate-900/50">
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider px-6 py-2 rounded transition-all active:scale-95"
+              >
+                Close
               </button>
             </div>
           </div>

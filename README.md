@@ -40,8 +40,28 @@ bun install
 
    **Note:** Use forward slashes (`/`) in paths, even on Windows.
 
-## Running the Application
 
+## Build for Production
+
+```bash
+bun run build
+bun run start
+```
+
+**In production:**
+- Single Express server on port **3006**
+- Serves both API (`/api/*`) and static frontend (`/*` from `dist/`)
+- No separate Vite server needed
+- Frontend available at `http://localhost:3006`
+
+**Alternative: PM2 (requires Bun in PATH)**
+```bash
+bun run build
+pm2 start ecosystem.config.cjs
+```
+
+
+## Running the Application
 You need to run **two servers** simultaneously:
 
 ### Terminal 1 - Backend API Server (port 3006)
@@ -77,21 +97,3 @@ $env:DEBUG="true"; bun run dev:server
 
 For detailed logging documentation, see [docs/LOGGING.md](./docs/LOGGING.md)
 
-## Build for Production
-
-```bash
-bun run build
-bun run start
-```
-
-**In production:**
-- Single Express server on port **3006**
-- Serves both API (`/api/*`) and static frontend (`/*` from `dist/`)
-- No separate Vite server needed
-- Frontend available at `http://localhost:3006`
-
-**Alternative: PM2 (requires Bun in PATH)**
-```bash
-bun run build
-pm2 start ecosystem.config.cjs
-```

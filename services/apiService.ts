@@ -218,3 +218,25 @@ export async function saveConfig(config: { pollInterval: number; projects: Array
   }
   return response.json();
 }
+
+// Get file content
+export async function getFileContent(projectId: string, filePath: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/file?path=${encodeURIComponent(filePath)}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to fetch file content');
+  }
+  const data = await response.json();
+  return data.content;
+}
+
+// Get file diff
+export async function getFileDiff(projectId: string, filePath: string, staged: boolean = false): Promise<string> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/diff?path=${encodeURIComponent(filePath)}&staged=${staged}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to fetch file diff');
+  }
+  const data = await response.json();
+  return data.diff;
+}

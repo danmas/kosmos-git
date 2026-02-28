@@ -11,7 +11,9 @@ import {
   checkoutBranch,
   createBranch,
   mergeDevToMain,
-  mergeBranches
+  mergeBranches,
+  getFileContent,
+  getFileDiff
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -527,6 +529,55 @@ router.post('/:id/merge-branches', async (req: Request<{ id: string }>, res: Res
       error: 'Failed to merge branches',
       details: error.message
     });
+  }
+});
+
+// GET /api/projects/:id/file - Получение содержимого файла
+router.get('/:id/file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const filePath = req.query.path as string;
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    const content = await getFileContent(project.path, filePath);
+    res.json({ content });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error reading file', {
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to read file', details: error.message });
+  }
+});
+
+// GET /api/projects/:id/diff - Получение diff файла
+router.get('/:id/diff', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const filePath = req.query.path as string;
+    const staged = req.query.staged === 'true';
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    const diff = await getFileDiff(project.path, filePath, staged);
+    res.json({ diff });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error getting diff', {
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to get diff', details: error.message });
   }
 });
 
