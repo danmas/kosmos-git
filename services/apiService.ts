@@ -130,6 +130,19 @@ export async function createBranch(projectId: string, branchName: string): Promi
   return response.json();
 }
 
+export async function deleteBranch(projectId: string, branchName: string): Promise<Project> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/delete-branch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branchName })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.details || data.error || 'Failed to delete branch');
+  }
+  return response.json();
+}
+
 // Get raw config.json from server
 export async function getConfig(): Promise<any> {
   const response = await fetch(`${API_BASE}/projects/config`);
@@ -231,8 +244,12 @@ export async function getFileContent(projectId: string, filePath: string): Promi
 }
 
 // Get file diff
-export async function getFileDiff(projectId: string, filePath: string, staged: boolean = false): Promise<string> {
-  const response = await fetch(`${API_BASE}/projects/${projectId}/diff?path=${encodeURIComponent(filePath)}&staged=${staged}`);
+export async function getFileDiff(projectId: string, filePath: string, staged: boolean = false, hash?: string): Promise<string> {
+  let url = `${API_BASE}/projects/${projectId}/diff?path=${encodeURIComponent(filePath)}&staged=${staged}`;
+  if (hash) {
+    url += `&hash=${encodeURIComponent(hash)}`;
+  }
+  const response = await fetch(url);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'Failed to fetch file diff');
@@ -240,3 +257,25 @@ export async function getFileDiff(projectId: string, filePath: string, staged: b
   const data = await response.json();
   return data.diff;
 }
+
+// Search commits
+export async function searchCommits(projectId: string, query: string): Promise<any[]> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/commits/search?q=${encodeURIComponent(query)}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to search commits');
+  }
+  const data = await response.json();
+  return data.commits;
+}
+
+// Get commit details
+export async function getCommitDetails(projectId: string, hash: string): Promise<{ commit: any; files: any[] }> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/commits/${encodeURIComponent(hash)}`);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to get commit details');
+  }
+  return response.json();
+}
+

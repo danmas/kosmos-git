@@ -4,6 +4,7 @@ import { Project, FileChangeType, FileChange } from '../types';
 import { Icons } from '../constants';
 import { generateCommitMessage } from '../services/geminiService';
 import { getFileContent, getFileDiff } from '../services/apiService';
+import { CommitSearchModal } from './CommitSearchModal';
 
 interface FileItemProps {
   change: FileChange;
@@ -79,6 +80,7 @@ interface ProjectDetailsProps {
   onUnstageFile: (projectId: string, filePath: string) => void;
   onStageAll: (projectId: string) => void;
   onCreateBranch: (projectId: string, branchName: string) => void;
+  onDeleteBranch: (projectId: string, branchName: string) => void;
   onCommitAll: (projectId: string, message: string) => void;
   onMergeDevToMain: (projectId: string) => void;
   onMergeBranches: (projectId: string, fromBranch: string, toBranch: string) => void;
@@ -94,6 +96,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onUnstageFile,
   onStageAll,
   onCreateBranch,
+  onDeleteBranch,
   onCommitAll,
   onMergeDevToMain,
   onMergeBranches,
@@ -108,7 +111,9 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [newBranchName, setNewBranchName] = useState('');
   const [mergeFrom, setMergeFrom] = useState('');
   const [mergeTo, setMergeTo] = useState('');
-  const [selectedFile, setSelectedFile] = useState<{ path: string, type: 'content' | 'diff', staged: boolean } | null>(null);
+  const [branchToDelete, setBranchToDelete] = useState<string | null>(null);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{ path: string, type: 'content' | 'diff', staged: boolean, hash?: string } | null>(null);
   const [fileDetails, setFileDetails] = useState('');
   const [loadingDetails, setLoadingDetails] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,7 +132,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         .catch(err => setFileDetails('Error: ' + err.message))
         .finally(() => setLoadingDetails(false));
     } else {
-      getFileDiff(project.id, selectedFile.path, selectedFile.staged)
+      getFileDiff(project.id, selectedFile.path, selectedFile.staged, selectedFile.hash)
         .then(diff => setFileDetails(diff))
         .catch(err => setFileDetails('Error: ' + err.message))
         .finally(() => setLoadingDetails(false));
@@ -208,19 +213,34 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <h2 className="text-sm font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade-right">
-            {sortedBranches.map(b => (
-              <button
-                key={b}
-                onClick={() => onBranchSwitch(project.id, b)}
-                disabled={project.locked}
-                className={`px-2 py-0.5 rounded border text-xs mono font-bold transition-all whitespace-nowrap ${b === project.branch
-                  ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]'
-                  : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-700 disabled:cursor-not-allowed disabled:opacity-50'
-                  }`}
-              >
-                {b}
-              </button>
-            ))}
+            {sortedBranches.map(b => {
+              const canDelete = b !== project.branch && !project.locked && b !== 'main' && b !== 'master' && b !== 'dev' && b !== 'develop';
+              return (
+                <div key={b} className="relative group flex items-center">
+                  <button
+                    onClick={() => onBranchSwitch(project.id, b)}
+                    disabled={project.locked}
+                    className={`px-2 py-0.5 rounded border text-xs mono font-bold transition-all whitespace-nowrap ${
+                      canDelete ? 'pr-6' : ''
+                    } ${b === project.branch
+                      ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]'
+                      : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-700 disabled:cursor-not-allowed disabled:opacity-50'
+                      }`}
+                  >
+                    {b}
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setBranchToDelete(b); }}
+                      className="absolute right-0 top-0 bottom-0 px-1 opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 rounded-r transition-all flex items-center justify-center"
+                      title={`Delete branch ${b}`}
+                    >
+                      <Icons.Close className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -240,6 +260,14 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
           >
             <Icons.GitBranch className="w-3.5 h-3.5 rotate-180 group-hover:scale-110 transition-transform" />
             <span className="text-[10px] font-black uppercase tracking-tighter">Merge</span>
+          </button>
+          <button
+            onClick={() => setShowSearchModal(true)}
+            disabled={project.locked}
+            className="p-1 rounded text-emerald-500/80 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed group"
+            title={project.locked ? "Project is locked" : "Search commits"}
+          >
+            <Icons.Search className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
           </button>
           <button
             onClick={() => setShowCreateBranch(true)}
@@ -456,6 +484,46 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         </div>
       )}
 
+      {/* Delete Branch Modal */}
+      {branchToDelete && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xs rounded-xl p-4 flex flex-col gap-3 shadow-2xl">
+            <h3 className="text-xs font-black uppercase tracking-widest text-rose-400">Delete Branch</h3>
+            <p className="text-[10px] text-slate-300">
+              Are you sure you want to delete <span className="text-white font-mono bg-slate-800 px-1 py-0.5 rounded border border-slate-700">{branchToDelete}</span>?
+            </p>
+            <p className="text-[9px] text-slate-500 uppercase font-bold">This action cannot be undone.</p>
+            <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-slate-800/40">
+              <button 
+                onClick={() => setBranchToDelete(null)} 
+                className="text-[10px] text-slate-500 font-bold uppercase px-3 hover:text-slate-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  onDeleteBranch(project.id, branchToDelete);
+                  setBranchToDelete(null);
+                }} 
+                className="bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded transition-all active:scale-95 shadow-lg shadow-rose-600/10"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSearchModal && (
+        <CommitSearchModal
+          projectId={project.id}
+          onClose={() => setShowSearchModal(false)}
+          onViewDiff={(path, hash) => {
+             setSelectedFile({ path, type: 'diff', staged: false, hash });
+          }}
+        />
+      )}
+
       {/* File Details (Content/Diff) Modal */}
       {selectedFile && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
@@ -480,6 +548,33 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
               {loadingDetails ? (
                 <div className="flex items-center justify-center h-full">
                   <span className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></span>
+                </div>
+              ) : selectedFile.type === 'diff' ? (
+                <div className="w-full h-full bg-slate-950 border border-slate-800 rounded p-4 text-[13px] outline-none overflow-y-auto mono leading-relaxed custom-scrollbar bg-slate-950/80">
+                  {fileDetails.split('\n').map((line, i) => {
+                    let className = "text-slate-300";
+                    let bgClass = "hover:bg-slate-800/40 px-2 rounded-sm";
+
+                    if (line.startsWith('+') && !line.startsWith('+++')) {
+                      className = "text-emerald-400";
+                      bgClass = "bg-emerald-500/10 hover:bg-emerald-500/20 px-2 rounded-sm";
+                    } else if (line.startsWith('-') && !line.startsWith('---')) {
+                      className = "text-rose-400";
+                      bgClass = "bg-rose-500/10 hover:bg-rose-500/20 px-2 rounded-sm";
+                    } else if (line.startsWith('@@ ')) {
+                      className = "text-sky-400 font-bold";
+                      bgClass = "bg-sky-500/10 px-2 py-1 mt-2 mb-1 rounded-sm block";
+                    } else if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+                      className = "text-slate-500 font-bold";
+                      bgClass = "px-2 block";
+                    }
+
+                    return (
+                      <div key={i} className={`whitespace-pre-wrap break-all ${className} ${bgClass}`}>
+                        {line || ' '}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <textarea

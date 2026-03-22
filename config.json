@@ -5,7 +5,7 @@
       "id": "p1",
       "name": "kosmos-git",
       "path": "c:/ERV/projects-ex/kosmos-git",
-      "locked": true
+      "locked": false
     },
     {
       "id": "p2",
@@ -35,6 +35,30 @@
       "id": "p5",
       "name": "kosmos-backend",
       "path": "c:/ERV/projects-ex/kosmos-backend",
+      "locked": false
+    },
+    {
+      "id": "p6",
+      "name": "kosmos-json-npm",
+      "path": "c:/ERV/projects-ex/kosmos-json-npm",
+      "locked": false
+    },
+    {
+      "id": "p7",
+      "name": "CARL carlinkng",
+      "path": "C:/ERV/CARLINK/carlinkng",
+      "locked": false
+    },
+    {
+      "id": "p8",
+      "name": "CARL carl-panel",
+      "path": "c:/ERV/projects-ex/carl-panel",
+      "locked": false
+    },
+    {
+      "id": "p9",
+      "name": "CARL carl-superchat",
+      "path": "c:/ERV/projects-ex/carl-superchat",
       "locked": false
     }
   ]
