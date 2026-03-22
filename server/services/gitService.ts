@@ -212,6 +212,16 @@ export async function createBranch(projectPath: string, branchName: string): Pro
   await git.checkoutLocalBranch(branchName);
 }
 
+export async function deleteBranch(projectPath: string, branchName: string): Promise<void> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Deleting branch', {
+    path: resolvedPath,
+    branchName
+  });
+  await git.deleteLocalBranch(branchName, true);
+}
+
 export async function mergeDevToMain(projectPath: string): Promise<{
   success: boolean;
   report: string;
@@ -413,4 +423,162 @@ function formatDate(dateStr: string): string {
   if (diffDays < 7) return `${diffDays} days ago`;
 
   return date.toLocaleDateString();
+}
+
+import { join } from 'path';
+import { readFileSync, existsSync, statSync } from 'fs';
+
+export async function getFileContent(projectPath: string, filePath: string): Promise<string> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const fullPath = join(resolvedPath, filePath);
+
+  try {
+    if (!existsSync(fullPath)) {
+      return '(File not found or deleted)';
+    }
+    const stat = statSync(fullPath);
+    if (stat.size > 2 * 1024 * 1024) return '(File is too large to display)';
+
+    // Read up to 8KB to check if binary
+    const fd = require('fs').openSync(fullPath, 'r');
+    const buffer = Buffer.alloc(8192);
+    const bytesRead = require('fs').readSync(fd, buffer, 0, 8192, 0);
+    require('fs').closeSync(fd);
+
+    // Check for null bytes which usually indicates a binary file
+    if (buffer.subarray(0, bytesRead).includes(0)) {
+      return '(Binary file not displayed)';
+    }
+
+    return readFileSync(fullPath, 'utf8');
+  } catch (err: any) {
+    return `(Error reading file: ${err.message})`;
+  }
+}
+
+export async function getFileDiff(projectPath: string, filePath: string, staged: boolean = false, hash?: string): Promise<string> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  try {
+    let diff = '';
+
+    const status = await git.status();
+    const isUntracked = status.not_added.includes(filePath);
+
+    if (hash) {
+      diff = await git.raw(['show', '--format=', hash, '--', filePath]);
+    } else if (isUntracked) {
+      const content = await getFileContent(projectPath, filePath);
+      if (content.startsWith('(')) return content; // Return error or binary info
+      const lines = content.split('\n');
+      diff = `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n${lines.map(l => '+' + l).join('\n')}`;
+    } else {
+      if (staged) {
+        diff = await git.diff(['--staged', '--', filePath]);
+      } else {
+        diff = await git.diff(['--', filePath]);
+        if (!diff) {
+          diff = await git.diff(['HEAD', '--', filePath]);
+        }
+      }
+    }
+    return diff || 'No differences found.';
+  } catch (err: any) {
+    throw new Error('Could not get diff: ' + err.message);
+  }
+}
+
+export async function searchCommits(projectPath: string, query: string): Promise<any[]> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  
+  if (!query) return [];
+
+  logger.info(LogCategory.GIT, `Searching commits for query: "${query}"`, { path: resolvedPath });
+  console.log(`[GIT SEARCH] Начали поиск коммитов по тексту: "${query}"...`);
+
+  // Escape regex special characters for -G search
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  let logMsg: any = { all: [] };
+  let logPickaxe: any = { all: [] };
+  let logDiff: any = { all: [] };
+
+  const searchTasks = [
+    git.log(['-i', `--grep=${query}`])
+      .then(res => {
+        logMsg = res;
+        console.log(`[GIT SEARCH] Найдено по тексту коммита: ${res.all.length}`);
+      })
+      .catch(err => {
+        console.error(`[GIT SEARCH ERR] Ошибка поиска по сообщениям коммита:`, err.message);
+        throw err;
+      }),
+    git.log(['-i', `-S${query}`])
+      .then(res => {
+        logPickaxe = res;
+        console.log(`[GIT SEARCH] Найдено по pickaxe (-S): ${res.all.length}`);
+      })
+      .catch(err => {
+        console.error(`[GIT SEARCH ERR] Ошибка поиска по pickaxe:`, err.message);
+        throw err;
+      }),
+    git.log(['-i', `-G${escapedQuery}`])
+      .then(res => {
+        logDiff = res;
+        console.log(`[GIT SEARCH] Найдено по содержимому (diff, -G): ${res.all.length}`);
+      })
+      .catch(err => {
+        console.error(`[GIT SEARCH ERR] Ошибка поиска по -G:`, err.message);
+        throw err;
+      })
+  ];
+
+  try {
+    // Ждем все таски. Используем Settled, чтобы не все упало если одна упадет.
+    await Promise.allSettled(searchTasks);
+  } catch (err) {
+    // fail silently as results will be processed from those tasks that succeeded
+  }
+
+
+  const hashes = new Set();
+  const results: any[] = [];
+
+  const addCommits = (commits: readonly any[]) => {
+    for (const c of commits) {
+      if (!hashes.has(c.hash)) {
+        hashes.add(c.hash);
+        results.push(c);
+      }
+    }
+  };
+
+  addCommits(logMsg.all || []);
+  addCommits(logPickaxe.all || []);
+  addCommits(logDiff.all || []);
+
+  results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return results;
+}
+
+export async function getCommitDetails(projectPath: string, hash: string): Promise<any> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  
+  const log = await git.log({ maxCount: 1, hash }).catch(() => null);
+  const commit = log?.latest || null;
+
+  let files: { status: string, path: string }[] = [];
+  try {
+    const diffTree = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', hash]);
+    files = diffTree.trim().split('\n').filter(Boolean).map(line => {
+      const parts = line.split('\t');
+      return { status: parts[0].charAt(0), path: parts.slice(1).join('\t') };
+    });
+  } catch (e) {
+    // ignore
+  }
+
+  return { commit, files };
 }

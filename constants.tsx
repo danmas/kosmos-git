@@ -25,6 +25,12 @@ export const Icons = {
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
   ),
+  Close: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  ),
   Refresh: (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M23 4v6h-6"></path>
@@ -49,6 +55,12 @@ export const Icons = {
       <circle cx="12" cy="12" r="4"></circle>
       <line x1="1.05" y1="12" x2="7" y2="12"></line>
       <line x1="17.01" y1="12" x2="22.96" y2="12"></line>
+    </svg>
+  ),
+  Search: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
     </svg>
   ),
   Sparkles: (props: React.SVGProps<SVGSVGElement>) => (

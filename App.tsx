@@ -16,6 +16,7 @@ import {
   stageAllFiles as apiStageAllFiles,
   unstageAllFiles as apiUnstageAllFiles,
   createBranch as apiCreateBranch,
+  deleteBranch as apiDeleteBranch,
   mergeDevToMain as apiMergeDevToMain,
   mergeBranches as apiMergeBranches,
   saveConfig,
@@ -244,6 +245,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteBranch = async (projectId: string, branchName: string) => {
+    try {
+      const updatedProject = await apiDeleteBranch(projectId, branchName);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+      showToast('success', `Branch "${branchName}" deleted`);
+    } catch (err: any) {
+      console.error('Delete branch error:', err);
+      const errorMessage = err?.message || 'Failed to delete branch';
+      showToast('error', errorMessage);
+    }
+  };
+
   const handleMergeDevToMain = async (projectId: string) => {
     try {
       setIsCommitting(true);
@@ -454,6 +470,7 @@ const App: React.FC = () => {
             onUnstageFile={handleUnstageFile}
             onStageAll={handleStageAll}
             onCreateBranch={handleCreateBranch}
+            onDeleteBranch={handleDeleteBranch}
             onMergeDevToMain={handleMergeDevToMain}
             onMergeBranches={handleMergeBranches}
             isCommitting={isCommitting}
@@ -497,11 +514,11 @@ const App: React.FC = () => {
       )}
 
       {/* Toast Notifications */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none">
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`px-4 py-3 rounded-lg shadow-xl backdrop-blur-sm border max-w-sm animate-slide-in ${toast.type === 'success'
+            className={`px-4 py-3 rounded-lg shadow-2xl backdrop-blur-md border max-w-sm animate-slide-in pointer-events-auto ${toast.type === 'success'
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
               : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
               }`}

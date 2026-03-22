@@ -11,7 +11,12 @@ import {
   checkoutBranch,
   createBranch,
   mergeDevToMain,
-  mergeBranches
+  mergeBranches,
+  getFileContent,
+  getFileDiff,
+  deleteBranch,
+  searchCommits,
+  getCommitDetails
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -407,6 +412,51 @@ router.post('/:id/create-branch', async (req: Request<{ id: string }>, res: Resp
   }
 });
 
+// POST /api/projects/:id/delete-branch - Удаление ветки
+router.post('/:id/delete-branch', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      logger.warn(LogCategory.API, 'Project not found', { projectId });
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to delete branches.' });
+    }
+
+    const { branchName } = req.body;
+    if (!branchName || typeof branchName !== 'string') {
+      logger.warn(LogCategory.API, 'Invalid delete-branch request - no branch name', {
+        projectId
+      });
+      return res.status(400).json({ error: 'Branch name required' });
+    }
+
+    logger.info(LogCategory.GIT, 'Deleting branch', {
+      projectId,
+      projectName: project.name,
+      branchName
+    });
+
+    await deleteBranch(project.path, branchName);
+    const status = await getProjectStatus(project);
+    res.json(status);
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error deleting branch', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    let detailedError = error.message;
+    if (detailedError.includes('Cannot delete branch')) {
+      detailedError = detailedError.replace(/.*Cannot delete branch/i, 'Cannot delete branch');
+    }
+    res.status(500).json({ error: 'Failed to delete branch', details: detailedError });
+  }
+});
+
 // POST /api/projects/:id/merge-dev-to-main - Merge dev into main with checks
 router.post('/:id/merge-dev-to-main', async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -527,6 +577,100 @@ router.post('/:id/merge-branches', async (req: Request<{ id: string }>, res: Res
       error: 'Failed to merge branches',
       details: error.message
     });
+  }
+});
+
+// GET /api/projects/:id/file - Получение содержимого файла
+router.get('/:id/file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const filePath = req.query.path as string;
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    const content = await getFileContent(project.path, filePath);
+    res.json({ content });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error reading file', {
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to read file', details: error.message });
+  }
+});
+
+// GET /api/projects/:id/diff - Получение diff файла
+router.get('/:id/diff', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const filePath = req.query.path as string;
+    const staged = req.query.staged === 'true';
+    const hash = req.query.hash as string | undefined;
+
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    const diff = await getFileDiff(project.path, filePath, staged, hash);
+    res.json({ diff });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error getting diff', {
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to get diff', details: error.message });
+  }
+});
+
+// GET /api/projects/:id/commits/search - Search commits
+router.get('/:id/commits/search', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const query = req.query.q as string;
+    if (!query) {
+      return res.status(400).json({ error: 'Search query required' });
+    }
+
+    const commits = await searchCommits(project.path, query);
+    res.json({ commits });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error searching commits', { error: error.message });
+    res.status(500).json({ error: 'Failed to search commits', details: error.message });
+  }
+});
+
+// GET /api/projects/:id/commits/:hash - Get commit details
+router.get('/:id/commits/:hash', async (req: Request<{ id: string, hash: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const hash = req.params.hash;
+    const details = await getCommitDetails(project.path, hash);
+    if (!details.commit) {
+      return res.status(404).json({ error: 'Commit not found' });
+    }
+    res.json(details);
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error getting commit details', { error: error.message });
+    res.status(500).json({ error: 'Failed to get commit details', details: error.message });
   }
 });
 
