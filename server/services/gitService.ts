@@ -488,24 +488,29 @@ export async function getFileDiff(projectPath: string, filePath: string, staged:
   }
 }
 
-export async function searchCommits(projectPath: string, query: string): Promise<any[]> {
+export async function searchCommits(projectPath: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
   
   if (!query) return [];
 
-  logger.info(LogCategory.GIT, `Searching commits for query: "${query}"`, { path: resolvedPath });
-  console.log(`[GIT SEARCH] Начали поиск коммитов по тексту: "${query}"...`);
+  logger.info(LogCategory.GIT, `Searching commits for query: "${query}"`, { path: resolvedPath, since, maxCount });
+  console.log(`[GIT SEARCH] Начали поиск коммитов по тексту: "${query}", since=${since || 'all'}, maxCount=${maxCount || 'all'}...`);
 
   // Escape regex special characters for -G search
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Build common args for date/count filters
+  const filterArgs: string[] = [];
+  if (since) filterArgs.push(`--since=${since}`);
+  if (maxCount) filterArgs.push(`-n`, String(maxCount));
 
   let logMsg: any = { all: [] };
   let logPickaxe: any = { all: [] };
   let logDiff: any = { all: [] };
 
   const searchTasks = [
-    git.log(['-i', `--grep=${query}`])
+    git.log(['-i', `--grep=${query}`, ...filterArgs])
       .then(res => {
         logMsg = res;
         console.log(`[GIT SEARCH] Найдено по тексту коммита: ${res.all.length}`);
@@ -514,7 +519,7 @@ export async function searchCommits(projectPath: string, query: string): Promise
         console.error(`[GIT SEARCH ERR] Ошибка поиска по сообщениям коммита:`, err.message);
         throw err;
       }),
-    git.log(['-i', `-S${query}`])
+    git.log(['-i', `-S${query}`, ...filterArgs])
       .then(res => {
         logPickaxe = res;
         console.log(`[GIT SEARCH] Найдено по pickaxe (-S): ${res.all.length}`);
@@ -523,7 +528,7 @@ export async function searchCommits(projectPath: string, query: string): Promise
         console.error(`[GIT SEARCH ERR] Ошибка поиска по pickaxe:`, err.message);
         throw err;
       }),
-    git.log(['-i', `-G${escapedQuery}`])
+    git.log(['-i', `-G${escapedQuery}`, ...filterArgs])
       .then(res => {
         logDiff = res;
         console.log(`[GIT SEARCH] Найдено по содержимому (diff, -G): ${res.all.length}`);
@@ -566,18 +571,44 @@ export async function getCommitDetails(projectPath: string, hash: string): Promi
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
   
-  const log = await git.log({ maxCount: 1, hash }).catch(() => null);
-  const commit = log?.latest || null;
+  console.log(`[GIT COMMIT] Getting details for ${hash.substring(0, 7)} in ${resolvedPath}`);
+
+  // Use raw git log to reliably get commit info by hash
+  let commit: any = null;
+  try {
+    const raw = await git.raw(['log', '-1', '--format=%H%n%an%n%ae%n%aI%n%s%n%b', hash]);
+    const lines = raw.trim().split('\n');
+    if (lines.length >= 4) {
+      commit = {
+        hash: lines[0],
+        author_name: lines[1],
+        author_email: lines[2],
+        date: lines[3],
+        message: lines[4] || '',
+        body: lines.slice(5).join('\n').trim()
+      };
+    }
+  } catch (e: any) {
+    console.error(`[GIT COMMIT ERR] Error getting log for ${hash}:`, e.message);
+  }
 
   let files: { status: string, path: string }[] = [];
   try {
     const diffTree = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', hash]);
+    console.log(`[GIT COMMIT] diff-tree raw output for ${hash.substring(0, 7)}:`, JSON.stringify(diffTree.substring(0, 500)));
     files = diffTree.trim().split('\n').filter(Boolean).map(line => {
-      const parts = line.split('\t');
-      return { status: parts[0].charAt(0), path: parts.slice(1).join('\t') };
+      // Handle both tab-separated and space-separated output
+      const parts = line.split(/\t+/);
+      if (parts.length >= 2) {
+        return { status: parts[0].trim().charAt(0), path: parts.slice(1).join('\t').trim() };
+      }
+      // Fallback: try splitting by whitespace
+      const spaceParts = line.trim().split(/\s+/);
+      return { status: spaceParts[0].charAt(0), path: spaceParts.slice(1).join(' ') };
     });
-  } catch (e) {
-    // ignore
+    console.log(`[GIT COMMIT] Parsed ${files.length} files for ${hash.substring(0, 7)}`);
+  } catch (e: any) {
+    console.error(`[GIT COMMIT ERR] Error getting diff-tree for ${hash}:`, e.message);
   }
 
   return { commit, files };
