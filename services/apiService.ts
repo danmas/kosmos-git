@@ -259,8 +259,11 @@ export async function getFileDiff(projectId: string, filePath: string, staged: b
 }
 
 // Search commits
-export async function searchCommits(projectId: string, query: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/projects/${projectId}/commits/search?q=${encodeURIComponent(query)}`);
+export async function searchCommits(projectId: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
+  let url = `${API_BASE}/projects/${projectId}/commits/search?q=${encodeURIComponent(query)}`;
+  if (since) url += `&since=${encodeURIComponent(since)}`;
+  if (maxCount) url += `&maxCount=${maxCount}`;
+  const response = await fetch(url);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'Failed to search commits');

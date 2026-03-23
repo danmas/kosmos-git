@@ -645,7 +645,10 @@ router.get('/:id/commits/search', async (req: Request<{ id: string }>, res: Resp
       return res.status(400).json({ error: 'Search query required' });
     }
 
-    const commits = await searchCommits(project.path, query);
+    const since = req.query.since as string | undefined;
+    const maxCount = req.query.maxCount ? parseInt(req.query.maxCount as string, 10) : undefined;
+
+    const commits = await searchCommits(project.path, query, since, maxCount);
     res.json({ commits });
   } catch (error: any) {
     logger.error(LogCategory.API, 'Error searching commits', { error: error.message });

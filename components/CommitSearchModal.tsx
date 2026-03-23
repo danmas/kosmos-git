@@ -8,6 +8,21 @@ interface CommitSearchModalProps {
   onViewDiff: (path: string, hash: string) => void;
 }
 
+const DEPTH_PRESETS = [
+  { label: '1 мес', value: '1.month.ago' },
+  { label: '3 мес', value: '3.months.ago' },
+  { label: '6 мес', value: '6.months.ago' },
+  { label: '1 год', value: '1.year.ago' },
+  { label: 'Всё', value: '' },
+];
+
+const COUNT_PRESETS = [
+  { label: '50', value: 50 },
+  { label: '200', value: 200 },
+  { label: '500', value: 500 },
+  { label: 'Все', value: 0 },
+];
+
 export const CommitSearchModal: React.FC<CommitSearchModalProps> = ({ projectId, onClose, onViewDiff }) => {
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -17,13 +32,20 @@ export const CommitSearchModal: React.FC<CommitSearchModalProps> = ({ projectId,
   const [isLoadingCommit, setIsLoadingCommit] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // Filters
+  const [sincePreset, setSincePreset] = useState('3.months.ago');
+  const [countPreset, setCountPreset] = useState(200);
+
   const handleSearch = async () => {
     if (!query.trim()) return;
     setIsSearching(true);
     setSearched(true);
     setSelectedCommit(null);
+    setResults([]);
     try {
-      const commits = await searchCommits(projectId, query.trim());
+      const since = sincePreset || undefined;
+      const maxCount = countPreset || undefined;
+      const commits = await searchCommits(projectId, query.trim(), since, maxCount);
       setResults(commits);
     } catch (err: any) {
       console.error('Search error', err);
@@ -75,23 +97,69 @@ export const CommitSearchModal: React.FC<CommitSearchModalProps> = ({ projectId,
         <div className="flex flex-col md:flex-row flex-grow min-h-0">
           {/* Left panel: Search & Results */}
           <div className="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 max-h-[40vh] md:max-h-full">
+            {/* Search input */}
             <div className="p-3 border-b border-slate-800 bg-slate-950 flex gap-2">
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search words in commits..."
+                placeholder="Search in commits..."
                 className="flex-grow bg-slate-900 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-emerald-500/30 font-mono"
               />
-              <button 
-                onClick={handleSearch} 
+              <button
+                onClick={handleSearch}
                 disabled={isSearching}
                 className="bg-emerald-600/90 hover:bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all"
               >
                 {isSearching ? '...' : 'Search'}
               </button>
             </div>
+
+            {/* Filters row */}
+            <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/80 flex flex-wrap gap-x-4 gap-y-1.5 items-center">
+              {/* Date filter */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Глубина:</span>
+                <div className="flex gap-0.5">
+                  {DEPTH_PRESETS.map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => setSincePreset(p.value)}
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
+                        sincePreset === p.value
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'text-slate-500 hover:text-slate-300 border border-transparent hover:border-slate-700'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Count filter */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Макс:</span>
+                <div className="flex gap-0.5">
+                  {COUNT_PRESETS.map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => setCountPreset(p.value)}
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all ${
+                        countPreset === p.value
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          : 'text-slate-500 hover:text-slate-300 border border-transparent hover:border-slate-700'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Results list */}
             <div className="flex-grow overflow-y-auto custom-scrollbar p-2 bg-slate-900/30 relative">
               {isSearching && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px]">
@@ -106,22 +174,29 @@ export const CommitSearchModal: React.FC<CommitSearchModalProps> = ({ projectId,
               ) : (results.length === 0 && !isSearching) ? (
                  <div className="text-center text-slate-500 text-xs font-bold uppercase tracking-widest mt-10">No commits found</div>
               ) : (
-                results.map(c => (
-                  <div 
-                    key={c.hash} 
-                    onClick={() => handleSelectCommit(c.hash)}
-                    className={`p-3 mb-1.5 border rounded cursor-pointer transition-all ${selectedCommit?.hash === c.hash ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800'}`}
-                  >
-                    <div className="flex justify-between items-start mb-1 gap-2">
-                      <span className="text-xs font-bold text-slate-200 line-clamp-2 leading-tight" title={c.message}>{c.message}</span>
-                      <span className="text-[10px] text-emerald-400 mono shrink-0">{c.hash.substring(0, 7)}</span>
+                <>
+                  {results.length > 0 && !isSearching && (
+                    <div className="text-[10px] text-slate-500 text-center mb-2 font-mono">
+                      Found: {results.length} commit{results.length !== 1 ? 's' : ''}
                     </div>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 mt-2">
-                      <span className="truncate pr-2">{c.author_name}</span>
-                      <span className="shrink-0">{formatDate(c.date)}</span>
+                  )}
+                  {results.map(c => (
+                    <div
+                      key={c.hash}
+                      onClick={() => handleSelectCommit(c.hash)}
+                      className={`p-3 mb-1.5 border rounded cursor-pointer transition-all ${selectedCommit?.hash === c.hash ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800'}`}
+                    >
+                      <div className="flex justify-between items-start mb-1 gap-2">
+                        <span className="text-xs font-bold text-slate-200 line-clamp-2 leading-tight" title={c.message}>{c.message}</span>
+                        <span className="text-[10px] text-emerald-400 mono shrink-0">{c.hash.substring(0, 7)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 mt-2">
+                        <span className="truncate pr-2">{c.author_name}</span>
+                        <span className="shrink-0">{formatDate(c.date)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
           </div>
