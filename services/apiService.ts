@@ -118,6 +118,20 @@ export async function checkoutBranch(projectId: string, branch: string): Promise
   return response.json();
 }
 
+// Checkout to a specific commit (reset current branch or create new branch)
+export async function checkoutCommit(projectId: string, hash: string, newBranch?: string): Promise<Project> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/checkout-commit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hash, newBranch })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.details || errorData.error || 'Failed to checkout commit');
+  }
+  return response.json();
+}
+
 export async function createBranch(projectId: string, branchName: string): Promise<Project> {
   const response = await fetch(`${API_BASE}/projects/${projectId}/create-branch`, {
     method: 'POST',

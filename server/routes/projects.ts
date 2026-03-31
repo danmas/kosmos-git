@@ -9,6 +9,7 @@ import {
   unstageAllFiles,
   commitChanges,
   checkoutBranch,
+  checkoutCommit,
   createBranch,
   mergeDevToMain,
   mergeBranches,
@@ -675,6 +676,40 @@ router.get('/:id/commits/:hash', async (req: Request<{ id: string, hash: string 
   } catch (error: any) {
     logger.error(LogCategory.API, 'Error getting commit details', { error: error.message });
     res.status(500).json({ error: 'Failed to get commit details', details: error.message });
+  }
+});
+
+// POST /api/projects/:id/checkout-commit - Checkout to a specific commit
+router.post('/:id/checkout-commit', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      return res.status(403).json({ error: 'Project is locked' });
+    }
+
+    const { hash, newBranch } = req.body;
+    if (!hash) {
+      return res.status(400).json({ error: 'Commit hash is required' });
+    }
+
+    logger.info(LogCategory.GIT, 'Checkout commit', {
+      projectId, hash, newBranch: newBranch || '(reset current branch)'
+    });
+
+    await checkoutCommit(project.path, hash, newBranch);
+    const status = await getProjectStatus(project);
+    res.json(status);
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error checking out commit', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to checkout commit', details: error.message });
   }
 });
 

@@ -202,6 +202,21 @@ export async function checkoutBranch(projectPath: string, branch: string): Promi
   await git.checkout(branch);
 }
 
+export async function checkoutCommit(projectPath: string, hash: string, newBranch?: string): Promise<void> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+
+  if (newBranch) {
+    // Create new branch from this commit: git checkout -b <newBranch> <hash>
+    await git.checkout(['-b', newBranch, hash]);
+    logger.info(LogCategory.GIT, 'Created new branch from commit', { hash, newBranch });
+  } else {
+    // Reset current branch to this commit: git reset --hard <hash>
+    await git.reset(['--hard', hash]);
+    logger.info(LogCategory.GIT, 'Reset current branch to commit', { hash });
+  }
+}
+
 export async function createBranch(projectPath: string, branchName: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
