@@ -15,6 +15,7 @@ import {
   getFileContent,
   getFileDiff,
   deleteBranch,
+  getBranchCommits,
   searchCommits,
   getCommitDetails
 } from '../services/gitService';
@@ -674,6 +675,26 @@ router.get('/:id/commits/:hash', async (req: Request<{ id: string, hash: string 
   } catch (error: any) {
     logger.error(LogCategory.API, 'Error getting commit details', { error: error.message });
     res.status(500).json({ error: 'Failed to get commit details', details: error.message });
+  }
+});
+
+// GET /api/projects/:id/commits - Get commits for current branch
+router.get('/:id/commits', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const branch = req.query.branch as string || 'HEAD';
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+
+    const commits = await getBranchCommits(project.path, branch, limit);
+    res.json({ commits });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error getting branch commits', { error: error.message });
+    res.status(500).json({ error: 'Failed to get branch commits', details: error.message });
   }
 });
 

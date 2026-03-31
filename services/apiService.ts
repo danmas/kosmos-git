@@ -258,6 +258,23 @@ export async function getFileDiff(projectId: string, filePath: string, staged: b
   return data.diff;
 }
 
+// Get branch commits
+export async function getBranchCommits(projectId: string, branch?: string, limit?: number): Promise<any[]> {
+  let url = `${API_BASE}/projects/${projectId}/commits`;
+  const params = [];
+  if (branch) params.push(`branch=${encodeURIComponent(branch)}`);
+  if (limit) params.push(`limit=${limit}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to fetch branch commits');
+  }
+  const data = await response.json();
+  return data.commits;
+}
+
 // Search commits
 export async function searchCommits(projectId: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
   let url = `${API_BASE}/projects/${projectId}/commits/search?q=${encodeURIComponent(query)}`;

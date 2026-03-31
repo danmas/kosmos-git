@@ -488,6 +488,18 @@ export async function getFileDiff(projectPath: string, filePath: string, staged:
   }
 }
 
+export async function getBranchCommits(projectPath: string, branch: string, maxCount: number = 50): Promise<any[]> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  try {
+    const log = await git.log([branch, '-n', String(maxCount)]);
+    return [...log.all];
+  } catch (err: any) {
+    logger.error(LogCategory.GIT, 'Error getting branch commits', { error: err.message });
+    return [];
+  }
+}
+
 export async function searchCommits(projectPath: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);

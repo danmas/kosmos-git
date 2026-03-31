@@ -3,7 +3,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Project, FileChangeType, FileChange } from '../types';
 import { Icons } from '../constants';
 import { generateCommitMessage } from '../services/geminiService';
-import { getFileContent, getFileDiff } from '../services/apiService';
+import { getFileContent, getFileDiff, getBranchCommits, getCommitDetails } from '../services/apiService';
 import { CommitSearchModal } from './CommitSearchModal';
 
 interface FileItemProps {
@@ -116,7 +116,38 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [selectedFile, setSelectedFile] = useState<{ path: string, type: 'content' | 'diff', staged: boolean, hash?: string } | null>(null);
   const [fileDetails, setFileDetails] = useState('');
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [branchCommits, setBranchCommits] = useState<any[]>([]);
+  const [loadingCommits, setLoadingCommits] = useState(false);
+  const [selectedCommitDetails, setSelectedCommitDetails] = useState<{commit: any, files: any[]} | null>(null);
+  const [loadingCommitDetails, setLoadingCommitDetails] = useState(false);
+  const [showCommitDetails, setShowCommitDetails] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoadingCommits(true);
+    getBranchCommits(project.id, project.branch, 50)
+      .then(commits => {
+        console.log('Fetched branch commits:', commits?.length, commits);
+        setBranchCommits(commits || []);
+      })
+      .catch(err => console.error('Failed to load commits:', err))
+      .finally(() => setLoadingCommits(false));
+  }, [project.id, project.branch, project.lastCommitMessage]);
+
+  const handleSelectCommit = async (hash: string) => {
+    if (!hash) return;
+    setShowCommitDetails(true);
+    setLoadingCommitDetails(true);
+    setSelectedCommitDetails(null);
+    try {
+      const details = await getCommitDetails(project.id, hash);
+      setSelectedCommitDetails(details);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingCommitDetails(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedFile) {
@@ -211,8 +242,32 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       {/* Detail Header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/40 border border-slate-800/40 rounded-t-lg flex-shrink-0 backdrop-blur-sm">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <h2 className="text-sm font-black text-white uppercase tracking-wider truncate flex-shrink-0">{project.name}</h2>
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade-right">
+          <h2 className="text-sm font-black text-white uppercase tracking-wider truncate flex-shrink-0 mr-2">{project.name}</h2>
+          
+          {/* COMMIT SELECTOR - UNIVERSAL POSITION */}
+          <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 bg-emerald-600/20 border border-emerald-500/40 rounded-md shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+            <Icons.Commit className="w-3 h-3 text-emerald-400" />
+            <select
+              className="bg-transparent text-emerald-300 text-[10px] font-bold mono outline-none cursor-pointer max-w-[150px] hover:text-emerald-200 transition-colors"
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectCommit(e.target.value);
+                  e.target.value = ''; 
+                }
+              }}
+            >
+              <option value="" className="bg-slate-900 text-slate-500">
+                {loadingCommits ? 'Loading...' : `COMMITS (${branchCommits.length})`}
+              </option>
+              {branchCommits.map(c => (
+                <option key={c.hash} value={c.hash} className="bg-slate-900 text-slate-200">
+                  {c.hash.substring(0, 7)} - {c.message}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade-right ml-1 border-l border-slate-800/60 pl-2">
             {sortedBranches.map(b => {
               const canDelete = b !== project.branch && !project.locked && b !== 'main' && b !== 'master' && b !== 'dev' && b !== 'develop';
               return (
@@ -243,6 +298,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
             })}
           </div>
         </div>
+
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => {
@@ -591,6 +647,86 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Branch Commit Details Modal */}
+      {showCommitDetails && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl max-h-[85vh] rounded-xl flex flex-col shadow-2xl relative overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50">
+              <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                Commit Details
+              </h3>
+              <button onClick={() => setShowCommitDetails(false)} className="p-1 rounded text-slate-500 hover:text-white hover:bg-slate-800">
+                <Icons.Close className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-grow overflow-hidden flex flex-col bg-slate-950">
+              {loadingCommitDetails ? (
+                <div className="flex justify-center items-center h-full p-8">
+                   <span className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></span>
+                </div>
+              ) : selectedCommitDetails ? (
+                <>
+                  <div className="p-4 border-b border-slate-800 bg-slate-900/50 shrink-0">
+                    <div className="flex gap-2 items-center mb-2">
+                      <span className="text-[10px] mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{selectedCommitDetails.commit.hash}</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+                        {new Date(selectedCommitDetails.commit.date).toLocaleString()}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-200 whitespace-pre-wrap leading-relaxed">{selectedCommitDetails.commit.message}</h4>
+                    {selectedCommitDetails.commit.body && (
+                      <p className="text-xs text-slate-400 mt-2 whitespace-pre-wrap">{selectedCommitDetails.commit.body}</p>
+                    )}
+                    <div className="text-xs text-slate-500 mt-3 pt-2 border-t border-slate-800/50">
+                      By {selectedCommitDetails.commit.author_name} &lt;{selectedCommitDetails.commit.author_email}&gt;
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-900/80 border-b border-slate-800 shrink-0 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{selectedCommitDetails.files.length} files changed</span>
+                  </div>
+                  <div className="flex-grow overflow-y-auto custom-scrollbar p-2 relative">
+                    {selectedCommitDetails.files.length > 0 ? (
+                      selectedCommitDetails.files.map((f, i) => {
+                        let theme = { text: 'text-slate-400', bg: 'bg-slate-400/5', border: 'border-slate-400/10' };
+                        if (f.status === 'A') theme = { text: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-500/20' };
+                        if (f.status === 'M') theme = { text: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-500/20' };
+                        if (f.status === 'D') theme = { text: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-500/20' };
+
+                        return (
+                          <div key={i} className="flex items-center justify-between p-2 hover:bg-slate-800/60 transition-all group rounded border border-transparent hover:border-slate-800 mb-1 pl-3">
+                            <div className="flex items-center gap-3 min-w-0 pr-2">
+                              <div className={`w-4 h-4 shrink-0 rounded flex items-center justify-center text-[10px] font-black mono border shadow-sm ${theme.border} ${theme.bg} ${theme.text}`}>
+                                {f.status}
+                              </div>
+                              <span className="mono text-[11px] text-slate-300 truncate group-hover:text-white" title={f.path}>{f.path}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setShowCommitDetails(false);
+                                setSelectedFile({ path: f.path, type: 'diff', staged: false, hash: selectedCommitDetails.commit.hash });
+                              }}
+                              className="text-[9px] font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:text-white hover:bg-emerald-500 px-2.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-all border border-emerald-500/20 shrink-0"
+                            >
+                              DIFF
+                            </button>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-slate-500 text-xs italic opacity-50">Empty commit / No files changed</div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-center items-center h-full p-8 text-slate-500">
+                   Failed to load commit details
+                </div>
+              )}
             </div>
           </div>
         </div>
