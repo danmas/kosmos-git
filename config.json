@@ -60,6 +60,12 @@
       "name": "CARL carl-superchat",
       "path": "c:/ERV/projects-ex/carl-superchat",
       "locked": false
+    },
+    {
+      "id": "p10",
+      "name": "kosmos-path",
+      "path": "c:/ERV/projects-ex/kosmos-PATH",
+      "locked": false
     }
   ]
 }
