@@ -5,7 +5,7 @@
       "id": "p1",
       "name": "kosmos-git",
       "path": "c:/ERV/projects-ex/kosmos-git",
-      "locked": true
+      "locked": false
     },
     {
       "id": "p2",
@@ -65,6 +65,12 @@
       "id": "p10",
       "name": "kosmos-path",
       "path": "c:/ERV/projects-ex/kosmos-PATH",
+      "locked": false
+    },
+    {
+      "id": "p11",
+      "name": "note_teach",
+      "path": "c:/ERV/projects-ex/note_teach",
       "locked": false
     }
   ]

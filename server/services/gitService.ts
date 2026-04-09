@@ -594,6 +594,16 @@ export async function searchCommits(projectPath: string, query: string, since?: 
   return results;
 }
 
+export async function checkoutFile(projectPath: string, filePath: string): Promise<void> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Checking out file', {
+    path: resolvedPath,
+    filePath
+  });
+  await git.checkout(['--', filePath]);
+}
+
 export async function getCommitDetails(projectPath: string, hash: string): Promise<any> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);

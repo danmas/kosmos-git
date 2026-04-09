@@ -19,6 +19,7 @@ import {
   deleteBranch as apiDeleteBranch,
   mergeDevToMain as apiMergeDevToMain,
   mergeBranches as apiMergeBranches,
+  checkoutFile as apiCheckoutFile,
   saveConfig,
   getConfig
 } from './services/apiService';
@@ -329,6 +330,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCheckoutFile = async (projectId: string, filePath: string) => {
+    try {
+      const updatedProject = await apiCheckoutFile(projectId, filePath);
+      setState(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === projectId ? updatedProject : p)
+      }));
+      showToast('success', `Discarded changes: ${filePath.split('/').pop()}`);
+    } catch (err: any) {
+      console.error('Checkout file error:', err);
+      const errorMessage = err?.message || 'Failed to discard changes';
+      showToast('error', errorMessage);
+    }
+  };
+
   const handleOpenSettings = async () => {
     try {
       const config = await getConfig();
@@ -473,6 +489,7 @@ const App: React.FC = () => {
             onDeleteBranch={handleDeleteBranch}
             onMergeDevToMain={handleMergeDevToMain}
             onMergeBranches={handleMergeBranches}
+            onCheckoutFile={handleCheckoutFile}
             isCommitting={isCommitting}
           />
         ) : (

@@ -313,3 +313,17 @@ export async function getCommitDetails(projectId: string, hash: string): Promise
   return response.json();
 }
 
+// Checkout a single file (discard changes)
+export async function checkoutFile(projectId: string, filePath: string): Promise<Project> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/checkout-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filePath })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.details || errorData.error || 'Failed to checkout file');
+  }
+  return response.json();
+}
+

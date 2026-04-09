@@ -12,10 +12,11 @@ interface FileItemProps {
   onUnstage?: () => void;
   onView?: () => void;
   onDiff?: () => void;
+  onCheckout?: () => void;
   disabled?: boolean;
 }
 
-const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, onView, onDiff, disabled }) => {
+const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, onView, onDiff, onCheckout, disabled }) => {
   const getTheme = () => {
     switch (change.type) {
       case FileChangeType.ADDED: return { text: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-500/20', icon: 'A' };
@@ -48,6 +49,14 @@ const FileItem: React.FC<FileItemProps> = ({ change, onStage, onUnstage, onView,
           title="View diff"
         >
           DIFF
+        </button>
+        <button
+          onClick={onCheckout}
+          disabled={disabled}
+          className="text-[9px] font-black text-rose-400/70 hover:text-rose-400 px-1 py-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all hidden sm:block"
+          title="Discard changes (git checkout -- file)"
+        >
+          CHECKOUT
         </button>
         {change.staged ? (
           <button
@@ -84,6 +93,7 @@ interface ProjectDetailsProps {
   onCommitAll: (projectId: string, message: string) => void;
   onMergeDevToMain: (projectId: string) => void;
   onMergeBranches: (projectId: string, fromBranch: string, toBranch: string) => void;
+  onCheckoutFile: (projectId: string, filePath: string) => void;
   isCommitting?: boolean;
 }
 
@@ -100,6 +110,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   onCommitAll,
   onMergeDevToMain,
   onMergeBranches,
+  onCheckoutFile,
   isCommitting = false
 }) => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -382,6 +393,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                       onUnstage={() => onUnstageFile(project.id, c.path)}
                       onView={() => setSelectedFile({ path: c.path, type: 'content', staged: true })}
                       onDiff={() => setSelectedFile({ path: c.path, type: 'diff', staged: true })}
+                      onCheckout={() => onCheckoutFile(project.id, c.path)}
                       disabled={project.locked}
                     />
                   ))}
@@ -397,6 +409,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                       onStage={() => onStageFile(project.id, c.path)}
                       onView={() => setSelectedFile({ path: c.path, type: 'content', staged: false })}
                       onDiff={() => setSelectedFile({ path: c.path, type: 'diff', staged: false })}
+                      onCheckout={() => onCheckoutFile(project.id, c.path)}
                       disabled={project.locked}
                     />
                   ))}
