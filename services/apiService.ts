@@ -118,6 +118,20 @@ export async function checkoutBranch(projectId: string, branch: string): Promise
   return response.json();
 }
 
+// Checkout to a specific commit (reset current branch or create new branch)
+export async function checkoutCommit(projectId: string, hash: string, newBranch?: string): Promise<Project> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/checkout-commit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hash, newBranch })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.details || errorData.error || 'Failed to checkout commit');
+  }
+  return response.json();
+}
+
 export async function createBranch(projectId: string, branchName: string): Promise<Project> {
   const response = await fetch(`${API_BASE}/projects/${projectId}/create-branch`, {
     method: 'POST',
@@ -258,6 +272,23 @@ export async function getFileDiff(projectId: string, filePath: string, staged: b
   return data.diff;
 }
 
+// Get branch commits
+export async function getBranchCommits(projectId: string, branch?: string, limit?: number): Promise<any[]> {
+  let url = `${API_BASE}/projects/${projectId}/commits`;
+  const params = [];
+  if (branch) params.push(`branch=${encodeURIComponent(branch)}`);
+  if (limit) params.push(`limit=${limit}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to fetch branch commits');
+  }
+  const data = await response.json();
+  return data.commits;
+}
+
 // Search commits
 export async function searchCommits(projectId: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
   let url = `${API_BASE}/projects/${projectId}/commits/search?q=${encodeURIComponent(query)}`;
@@ -278,6 +309,20 @@ export async function getCommitDetails(projectId: string, hash: string): Promise
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'Failed to get commit details');
+  }
+  return response.json();
+}
+
+// Checkout a single file (discard changes)
+export async function checkoutFile(projectId: string, filePath: string): Promise<Project> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/checkout-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filePath })
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.details || errorData.error || 'Failed to checkout file');
   }
   return response.json();
 }

@@ -202,6 +202,21 @@ export async function checkoutBranch(projectPath: string, branch: string): Promi
   await git.checkout(branch);
 }
 
+export async function checkoutCommit(projectPath: string, hash: string, newBranch?: string): Promise<void> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+
+  if (newBranch) {
+    // Create new branch from this commit: git checkout -b <newBranch> <hash>
+    await git.checkout(['-b', newBranch, hash]);
+    logger.info(LogCategory.GIT, 'Created new branch from commit', { hash, newBranch });
+  } else {
+    // Reset current branch to this commit: git reset --hard <hash>
+    await git.reset(['--hard', hash]);
+    logger.info(LogCategory.GIT, 'Reset current branch to commit', { hash });
+  }
+}
+
 export async function createBranch(projectPath: string, branchName: string): Promise<void> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
@@ -488,6 +503,18 @@ export async function getFileDiff(projectPath: string, filePath: string, staged:
   }
 }
 
+export async function getBranchCommits(projectPath: string, branch: string, maxCount: number = 50): Promise<any[]> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  try {
+    const log = await git.log([branch, '-n', String(maxCount)]);
+    return [...log.all];
+  } catch (err: any) {
+    logger.error(LogCategory.GIT, 'Error getting branch commits', { error: err.message });
+    return [];
+  }
+}
+
 export async function searchCommits(projectPath: string, query: string, since?: string, maxCount?: number): Promise<any[]> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
@@ -565,6 +592,16 @@ export async function searchCommits(projectPath: string, query: string, since?: 
 
   results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return results;
+}
+
+export async function checkoutFile(projectPath: string, filePath: string): Promise<void> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+  logger.debug(LogCategory.GIT, 'Checking out file', {
+    path: resolvedPath,
+    filePath
+  });
+  await git.checkout(['--', filePath]);
 }
 
 export async function getCommitDetails(projectPath: string, hash: string): Promise<any> {

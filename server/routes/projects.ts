@@ -9,14 +9,17 @@ import {
   unstageAllFiles,
   commitChanges,
   checkoutBranch,
+  checkoutCommit,
   createBranch,
   mergeDevToMain,
   mergeBranches,
   getFileContent,
   getFileDiff,
   deleteBranch,
+  getBranchCommits,
   searchCommits,
-  getCommitDetails
+  getCommitDetails,
+  checkoutFile
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -674,6 +677,102 @@ router.get('/:id/commits/:hash', async (req: Request<{ id: string, hash: string 
   } catch (error: any) {
     logger.error(LogCategory.API, 'Error getting commit details', { error: error.message });
     res.status(500).json({ error: 'Failed to get commit details', details: error.message });
+  }
+});
+
+// POST /api/projects/:id/checkout-commit - Checkout to a specific commit
+router.post('/:id/checkout-commit', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      return res.status(403).json({ error: 'Project is locked' });
+    }
+
+    const { hash, newBranch } = req.body;
+    if (!hash) {
+      return res.status(400).json({ error: 'Commit hash is required' });
+    }
+
+    logger.info(LogCategory.GIT, 'Checkout commit', {
+      projectId, hash, newBranch: newBranch || '(reset current branch)'
+    });
+
+    await checkoutCommit(project.path, hash, newBranch);
+    const status = await getProjectStatus(project);
+    res.json(status);
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error checking out commit', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to checkout commit', details: error.message });
+  }
+});
+
+// POST /api/projects/:id/checkout-file - Checkout a single file (discard changes)
+router.post('/:id/checkout-file', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      logger.warn(LogCategory.API, 'Project not found', { projectId });
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to discard changes.' });
+    }
+
+    const { filePath } = req.body;
+    if (!filePath || typeof filePath !== 'string') {
+      logger.warn(LogCategory.API, 'Invalid checkout-file request - no file path', { projectId });
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    logger.info(LogCategory.GIT, 'Checking out file', {
+      projectId,
+      projectName: project.name,
+      filePath
+    });
+
+    await checkoutFile(project.path, filePath);
+    const status = await getProjectStatus(project);
+    res.json(status);
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error checking out file', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({
+      error: 'Failed to checkout file',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/projects/:id/commits - Get commits for current branch
+router.get('/:id/commits', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const branch = req.query.branch as string || 'HEAD';
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+
+    const commits = await getBranchCommits(project.path, branch, limit);
+    res.json({ commits });
+  } catch (error: any) {
+    logger.error(LogCategory.API, 'Error getting branch commits', { error: error.message });
+    res.status(500).json({ error: 'Failed to get branch commits', details: error.message });
   }
 });
 
