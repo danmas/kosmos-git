@@ -19,7 +19,8 @@ import {
   getBranchCommits,
   searchCommits,
   getCommitDetails,
-  checkoutFile
+  checkoutFile,
+  pushChanges
 } from '../services/gitService';
 import { logger, LogCategory } from '../logger';
 
@@ -753,6 +754,53 @@ router.post('/:id/checkout-file', async (req: Request<{ id: string }>, res: Resp
       error: 'Failed to checkout file',
       details: error.message
     });
+  }
+});
+
+// POST /api/projects/:id/push - Push changes to remote
+router.post('/:id/push', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const project = findProject(projectId);
+    if (!project) {
+      logger.warn(LogCategory.API, 'Project not found', { projectId });
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    if (project.locked) {
+      logger.warn(LogCategory.API, 'Project is locked', { projectId, projectName: project.name });
+      return res.status(403).json({ error: 'Project is locked. Unlock it in config to push changes.' });
+    }
+
+    logger.info(LogCategory.GIT, 'Pushing changes', {
+      projectId,
+      projectName: project.name
+    });
+
+    const result = await pushChanges(project.path);
+
+    if (result.success) {
+      logger.info(LogCategory.GIT, 'Push successful', {
+        projectId,
+        projectName: project.name,
+        message: result.message
+      });
+      const status = await getProjectStatus(project);
+      res.json({ ...status, pushSuccess: true, pushMessage: result.message });
+    } else {
+      logger.warn(LogCategory.GIT, 'Push failed', {
+        projectId,
+        projectName: project.name,
+        error: result.message
+      });
+      res.status(400).json({ error: 'Push failed', details: result.message });
+    }
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Error pushing changes', {
+      projectId: req.params.id,
+      error: error.message
+    });
+    res.status(500).json({ error: 'Failed to push changes', details: error.message });
   }
 });
 

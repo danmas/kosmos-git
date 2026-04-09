@@ -3,7 +3,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Project, FileChangeType, FileChange } from '../types';
 import { Icons } from '../constants';
 import { generateCommitMessage } from '../services/geminiService';
-import { getFileContent, getFileDiff, getBranchCommits, getCommitDetails, checkoutCommit } from '../services/apiService';
+import { getFileContent, getFileDiff, getBranchCommits, getCommitDetails, checkoutCommit, pushChanges } from '../services/apiService';
 import { CommitSearchModal } from './CommitSearchModal';
 
 interface FileItemProps {
@@ -137,6 +137,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   const [checkoutNewBranch, setCheckoutNewBranch] = useState('');
   const [checkoutMode, setCheckoutMode] = useState<'current' | 'new'>('new');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -184,6 +185,24 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       alert('Checkout failed: ' + err.message);
     } finally {
       setCheckoutLoading(false);
+    }
+  };
+
+  const handlePush = async () => {
+    setIsPushing(true);
+    try {
+      const result = await pushChanges(project.id);
+      if (result.success) {
+        alert(result.message);
+        onRefresh(project.id);
+      } else {
+        alert('Push failed: ' + result.message);
+      }
+    } catch (err: any) {
+      console.error('Push error:', err);
+      alert('Push failed: ' + err.message);
+    } finally {
+      setIsPushing(false);
     }
   };
 
@@ -475,6 +494,18 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
               <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             ) : (
               <>Commit All</>
+            )}
+          </button>
+          <button
+            onClick={handlePush}
+            disabled={isPushing || project.locked}
+            className="bg-orange-600/90 hover:bg-orange-600 disabled:bg-slate-800/50 text-white text-xs font-black uppercase tracking-wider px-3 py-2 rounded shadow-lg shadow-orange-500/5 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 whitespace-nowrap"
+            title={project.locked ? "Project is locked" : "Push commits to remote"}
+          >
+            {isPushing ? (
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            ) : (
+              <>Push</>
             )}
           </button>
           <button

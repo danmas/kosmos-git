@@ -604,6 +604,37 @@ export async function checkoutFile(projectPath: string, filePath: string): Promi
   await git.checkout(['--', filePath]);
 }
 
+export async function pushChanges(projectPath: string): Promise<{ success: boolean; message: string }> {
+  const resolvedPath = resolveProjectPath(projectPath);
+  const git: SimpleGit = simpleGit(resolvedPath);
+
+  try {
+    logger.info(LogCategory.GIT, 'Pushing changes to remote', { path: resolvedPath });
+
+    // Get current branch
+    const status = await git.status();
+    const currentBranch = status.current;
+
+    if (!currentBranch) {
+      return { success: false, message: 'Not on any branch' };
+    }
+
+    // Check if there are commits to push
+    if (status.ahead === 0) {
+      return { success: true, message: 'Nothing to push - already up to date' };
+    }
+
+    // Push to origin
+    await git.push('origin', currentBranch);
+
+    logger.info(LogCategory.GIT, 'Push successful', { path: resolvedPath, branch: currentBranch });
+    return { success: true, message: `Pushed ${status.ahead} commit(s) to origin/${currentBranch}` };
+  } catch (error: any) {
+    logger.error(LogCategory.GIT, 'Push failed', { path: resolvedPath, error: error.message });
+    return { success: false, message: error.message };
+  }
+}
+
 export async function getCommitDetails(projectPath: string, hash: string): Promise<any> {
   const resolvedPath = resolveProjectPath(projectPath);
   const git: SimpleGit = simpleGit(resolvedPath);
