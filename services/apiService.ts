@@ -327,3 +327,28 @@ export async function checkoutFile(projectId: string, filePath: string): Promise
   return response.json();
 }
 
+// Push changes to remote
+export async function pushChanges(projectId: string): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      success: false,
+      message: data.error || data.details || 'Failed to push changes'
+    };
+  }
+
+  return {
+    success: true,
+    message: data.pushMessage || 'Push completed successfully'
+  };
+}
+
