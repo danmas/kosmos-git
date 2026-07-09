@@ -2,15 +2,51 @@
   "pollInterval": 30,
   "projects": [
     {
+      "id": "Pilot_3d_PFD",
+      "name": "Pilot_3d_PFD",
+      "path": "C:/ERV/CARLINK/CARL_AVI/WORK/Pilot/Pilot_3d_PFD",
+      "locked": false
+    },
+    {
+      "id": "p1-3D_body_task",
+      "name": "3D_body_task",
+      "path": "c:/ERV/projects-ex/3D_body_task",
+      "locked": false
+    },
+    {
       "id": "p1",
       "name": "kosmos-git",
       "path": "c:/ERV/projects-ex/kosmos-git",
       "locked": false
     },
     {
+      "id": "p12",
+      "name": "ImageGrid",
+      "path": "c:/ERV/projects-ex/ImageGrid",
+      "locked": false
+    },
+    {
+      "id": "p13",
+      "name": "FaceFormPlanar",
+      "path": "c:/ERV/projects-ex/FaceFormPlanar-",
+      "locked": false
+    },
+    {
+      "id": "p15",
+      "name": "panel-kit",
+      "path": "c:/ERV/projects-ex/panel-kit",
+      "locked": false
+    },
+    {
       "id": "p2",
       "name": "kosmos-model",
       "path": "c:/ERV/projects-ex/kosmos-model",
+      "locked": false
+    },
+    {
+      "id": "p2-task",
+      "name": "kosmos-task",
+      "path": "c:/ERV/projects-ex/kosmos-task",
       "locked": false
     },
     {
@@ -68,7 +104,7 @@
       "locked": false
     },
     {
-      "id": "p11",
+      "id": "p14",
       "name": "note_teach",
       "path": "c:/ERV/projects-ex/note_teach",
       "locked": false
